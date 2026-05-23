@@ -4,13 +4,17 @@
  * @version 1.1.8
  * @description bombo bir profil popout deneyimi için ışık efektleri ekler
  * @updateUrl https://raw.githubusercontent.com/7solace/AmbientProfilePopouts/main/AmbientProfilePopouts.plugin.js
-* @downloadUrl https://raw.githubusercontent.com/7solace/AmbientProfilePopouts/main/AmbientProfilePopouts.plugin.js
+ * @downloadUrl https://raw.githubusercontent.com/7solace/AmbientProfilePopouts/main/AmbientProfilePopouts.plugin.js
  */
 
+const PLUGIN_NAME = "AmbientProfilePopouts";
+const PLUGIN_FILE = "AmbientProfilePopouts.plugin.js";
+const UPDATE_URL = "https://raw.githubusercontent.com/7solace/AmbientProfilePopouts/main/AmbientProfilePopouts.plugin.js";
 
 module.exports = class AmbientProfilePopouts {
     start() {
         try {
+            this.checkForUpdates();
             this.injectCSS();
             
             this.observer = new MutationObserver((mutations) => {
@@ -39,6 +43,63 @@ module.exports = class AmbientProfilePopouts {
         BdApi.DOM.removeStyle("AmbientProfileCSS");
         if (this.observer) this.observer.disconnect();
         document.querySelectorAll('.ambient-profile-container').forEach(el => el.remove());
+    }
+
+    async checkForUpdates() {
+        if (this.updateCheckStarted) return;
+        this.updateCheckStarted = true;
+
+        try {
+            const response = await BdApi.Net.fetch(UPDATE_URL + "?t=" + Date.now(), {
+                headers: {
+                    "Cache-Control": "no-cache",
+                    "Pragma": "no-cache"
+                },
+                timeout: 10000
+            });
+
+            if (!response || !response.ok) throw new Error("Guncelleme dosyasi alinamadi.");
+
+            const remoteContent = await response.text();
+            const remoteName = this.getMetaValue(remoteContent, "name");
+            const remoteVersion = this.getMetaValue(remoteContent, "version");
+            const currentVersion = BdApi.Plugins.get(PLUGIN_NAME)?.version || "1.1.8";
+
+            if (remoteName !== PLUGIN_NAME || !remoteVersion) return;
+            if (!this.isNewerVersion(remoteVersion, currentVersion)) return;
+
+            const fs = require("fs");
+            const path = require("path");
+            const addon = BdApi.Plugins.get(PLUGIN_NAME);
+            const fileName = addon?.filename || PLUGIN_FILE;
+            const targetPath = path.join(BdApi.Plugins.folder, fileName);
+
+            fs.writeFileSync(targetPath, remoteContent, "utf8");
+            BdApi.UI?.showToast?.(`${PLUGIN_NAME} ${remoteVersion} indirildi. Discord'u yenile.`, {type: "success"});
+            console.log(`${PLUGIN_NAME} ${currentVersion} -> ${remoteVersion} guncellendi.`);
+        } catch (err) {
+            console.error(`${PLUGIN_NAME} guncelleme kontrolu basarisiz:`, err);
+        }
+    }
+
+    getMetaValue(content, key) {
+        const match = content.match(new RegExp("^\\s*\\*\\s*@" + key + "\\s+(.+)$", "mi"));
+        return match ? match[1].trim() : "";
+    }
+
+    isNewerVersion(remoteVersion, currentVersion) {
+        const remoteParts = remoteVersion.split(".").map(part => parseInt(part, 10) || 0);
+        const currentParts = currentVersion.split(".").map(part => parseInt(part, 10) || 0);
+        const length = Math.max(remoteParts.length, currentParts.length);
+
+        for (let i = 0; i < length; i++) {
+            const remotePart = remoteParts[i] || 0;
+            const currentPart = currentParts[i] || 0;
+            if (remotePart > currentPart) return true;
+            if (remotePart < currentPart) return false;
+        }
+
+        return false;
     }
 
     injectCSS() {
