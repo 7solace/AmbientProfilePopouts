@@ -1,5 +1,5 @@
 /**
- * @name ambientprofilepopouts.plugin
+ * @name AmbientProfilePopouts.plugin.js
  * @author s7lace
  * @version 1.0.9
  * @description bombo (özel temalarda da çalışma eylemi)
