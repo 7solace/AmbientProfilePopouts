@@ -1,7 +1,7 @@
 /**
  * @name AmbientProfilePopouts
  * @author s7lace
- * @version 1.2.1
+ * @version 1.2.2
  * @description Adds adaptive ambient glow effects and useful profile tools to Discord profile popouts.
  * @updateUrl https://raw.githubusercontent.com/7solace/AmbientProfilePopouts/main/AmbientProfilePopouts.plugin.js
  * @downloadUrl https://raw.githubusercontent.com/7solace/AmbientProfilePopouts/main/AmbientProfilePopouts.plugin.js
@@ -26,6 +26,11 @@ const IMAGE_SELECTORS = [
     '[class*="banner_"] img',
     '[class*="profileBanner_"] img'
 ].join(",");
+const LINK_SCOPE_SELECTORS = [
+    '[id^="chat-messages-"]',
+    '[class*="message_"]',
+    '[class*="embed_"]'
+].join(",");
 
 module.exports = class AmbientProfilePopouts {
     start() {
@@ -37,6 +42,7 @@ module.exports = class AmbientProfilePopouts {
             this.updateInterval = setInterval(() => this.checkForUpdates(true), UPDATE_CHECK_INTERVAL);
             this.injectCSS();
             this.scanExistingProfiles();
+            this.scanExistingLinks();
 
             this.observer = new MutationObserver((mutations) => {
                 for (const mutation of mutations) {
@@ -49,6 +55,7 @@ module.exports = class AmbientProfilePopouts {
                     for (const node of mutation.addedNodes) {
                         if (node.nodeType !== Node.ELEMENT_NODE) continue;
                         for (const profile of this.findProfileRoots(node)) this.addAmbientGlow(profile);
+                        this.enhanceLinks(node);
                     }
                 }
             });
@@ -73,6 +80,11 @@ module.exports = class AmbientProfilePopouts {
         document.querySelectorAll(".ambient-profile-container").forEach(el => el.remove());
         document.querySelectorAll(".ambient-profile-tools").forEach(el => el.remove());
         document.querySelectorAll(".ambient-profile-note").forEach(el => el.remove());
+        document.querySelectorAll(".ambient-link-tools").forEach(el => el.remove());
+        document.querySelectorAll(".ambient-enhanced-link").forEach(el => {
+            el.classList.remove("ambient-enhanced-link");
+            el.removeAttribute("data-ambient-domain");
+        });
         document.querySelectorAll(".ambient-profile-root").forEach(el => el.classList.remove("ambient-profile-root"));
     }
 
@@ -356,6 +368,70 @@ module.exports = class AmbientProfilePopouts {
             font-size: 11px;
         }
 
+        [class*="menu_"],
+        [class*="submenu_"],
+        [class*="tooltip_"],
+        [class*="popout_"]:not(.ambient-profile-root):not([class*="userPopoutOuter_"]),
+        [class*="picker_"],
+        [class*="autocomplete_"],
+        [class*="container_"][role="dialog"] {
+            background-color: rgba(18, 18, 24, 0.72) !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
+            box-shadow: 0 18px 48px rgba(0, 0, 0, 0.42), 0 0 28px rgba(114, 137, 218, 0.08) !important;
+            backdrop-filter: blur(18px) saturate(145%) !important;
+        }
+
+        [class*="menu_"] [class*="item_"]:hover,
+        [class*="submenu_"] [class*="item_"]:hover {
+            background-color: rgba(114, 137, 218, 0.18) !important;
+        }
+
+        .ambient-enhanced-link {
+            text-decoration-thickness: 2px !important;
+            text-underline-offset: 2px !important;
+        }
+
+        .ambient-link-tools {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            margin-left: 5px;
+            vertical-align: baseline;
+            white-space: nowrap;
+        }
+
+        .ambient-link-domain,
+        .ambient-link-copy {
+            display: inline-flex;
+            align-items: center;
+            height: 18px;
+            border: 1px solid rgba(255, 255, 255, 0.10);
+            border-radius: 6px;
+            color: var(--text-muted, #949ba4);
+            background: rgba(255, 255, 255, 0.055);
+            font-size: 10px;
+            font-weight: 700;
+            line-height: 18px;
+        }
+
+        .ambient-link-domain {
+            max-width: 150px;
+            padding: 0 6px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .ambient-link-copy {
+            padding: 0 6px;
+            cursor: pointer;
+            font-family: var(--font-primary, sans-serif);
+        }
+
+        .ambient-link-copy:hover {
+            color: #fff;
+            background: rgba(114, 137, 218, 0.22);
+        }
+
         @keyframes ambientGlowMove {
             0% { transform: translate3d(-2%, -1%, 0) rotate(0deg) scale(1); background-position: 0% 50%; }
             50% { transform: translate3d(2%, 1%, 0) rotate(8deg) scale(1.04); background-position: 100% 50%; }
@@ -389,6 +465,71 @@ module.exports = class AmbientProfilePopouts {
         if (node.matches?.(PROFILE_SELECTORS)) roots.add(node);
         node.querySelectorAll?.(PROFILE_SELECTORS).forEach(profile => roots.add(profile));
         return roots;
+    }
+
+    scanExistingLinks() {
+        this.enhanceLinks(document);
+    }
+
+    enhanceLinks(root) {
+        const anchors = [];
+        if (root.matches?.("a[href]")) anchors.push(root);
+        root.querySelectorAll?.("a[href]").forEach(anchor => anchors.push(anchor));
+
+        for (const anchor of anchors) this.enhanceLink(anchor);
+    }
+
+    enhanceLink(anchor) {
+        if (anchor.classList.contains("ambient-enhanced-link")) return;
+        if (!anchor.closest(LINK_SCOPE_SELECTORS)) return;
+        if (anchor.closest(".ambient-link-tools, .ambient-profile-tools, .ambient-profile-note")) return;
+        if (anchor.querySelector("img, video, canvas, svg")) return;
+
+        const url = this.parseHttpUrl(anchor.href);
+        if (!url) return;
+
+        const domain = this.getDisplayDomain(url);
+        if (!domain || domain === "discord.com") return;
+
+        anchor.classList.add("ambient-enhanced-link");
+        anchor.dataset.ambientDomain = domain;
+
+        const tools = document.createElement("span");
+        tools.className = "ambient-link-tools";
+        tools.contentEditable = "false";
+
+        const domainBadge = document.createElement("span");
+        domainBadge.className = "ambient-link-domain";
+        domainBadge.textContent = domain;
+        domainBadge.title = url.hostname;
+
+        const copyButton = document.createElement("button");
+        copyButton.className = "ambient-link-copy";
+        copyButton.type = "button";
+        copyButton.textContent = "Copy";
+        copyButton.title = "Copy link";
+        copyButton.addEventListener("click", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            this.copyText(url.href, "Link copied.");
+        });
+
+        tools.append(domainBadge, copyButton);
+        anchor.insertAdjacentElement("afterend", tools);
+    }
+
+    parseHttpUrl(href) {
+        try {
+            const url = new URL(href);
+            if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+            return url;
+        } catch {
+            return null;
+        }
+    }
+
+    getDisplayDomain(url) {
+        return url.hostname.replace(/^www\./i, "").toLowerCase();
     }
 
     addAmbientGlow(popout) {
