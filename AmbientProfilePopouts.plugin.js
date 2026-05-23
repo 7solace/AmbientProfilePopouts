@@ -1,8 +1,8 @@
 /**
  * @name AmbientProfilePopouts
  * @author s7lace
- * @version 1.1.10
- * @description bombo bir profil popout deneyimi için ışık efektleri ekler
+ * @version 1.1.11
+ * @description Adds adaptive ambient glow effects to Discord profile popouts.
  * @updateUrl https://raw.githubusercontent.com/7solace/AmbientProfilePopouts/main/AmbientProfilePopouts.plugin.js
  * @downloadUrl https://raw.githubusercontent.com/7solace/AmbientProfilePopouts/main/AmbientProfilePopouts.plugin.js
  */
@@ -11,33 +11,55 @@ const PLUGIN_NAME = "AmbientProfilePopouts";
 const PLUGIN_FILE = "AmbientProfilePopouts.plugin.js";
 const UPDATE_URL = "https://raw.githubusercontent.com/7solace/AmbientProfilePopouts/main/AmbientProfilePopouts.plugin.js";
 const UPDATE_CHECK_INTERVAL = 30 * 60 * 1000;
+const PROFILE_SELECTORS = [
+    '[class*="userProfileOuter_"]',
+    '[class*="userProfileModalOuter_"]',
+    '[class*="userPopoutOuter_"]',
+    '[class*="profileOuter_"]'
+].join(",");
+const IMAGE_SELECTORS = [
+    'img[src*="i.scdn.co"]',
+    'img[src*="spotify"]',
+    'svg foreignObject img',
+    'img[class*="avatar"]',
+    '[class*="avatar_"] img',
+    '[class*="banner_"] img',
+    '[class*="profileBanner_"] img'
+].join(",");
 
 module.exports = class AmbientProfilePopouts {
     start() {
         try {
+            this.colorRefreshTimers = new WeakMap();
             this.checkForUpdates();
             this.updateInterval = setInterval(() => this.checkForUpdates(true), UPDATE_CHECK_INTERVAL);
             this.injectCSS();
-            
+            this.scanExistingProfiles();
+
             this.observer = new MutationObserver((mutations) => {
-                for (const m of mutations) {
-                    for (const node of m.addedNodes) {
-                        if (node.nodeType === Node.ELEMENT_NODE) {
-                            if (node.matches && node.matches('[class*="userProfileOuter_"]')) {
-                                this.addAmbientGlow(node);
-                            } else if (node.querySelector) {
-                                const popout = node.querySelector('[class*="userProfileOuter_"]');
-                                if (popout) this.addAmbientGlow(popout);
-                            }
-                        }
+                for (const mutation of mutations) {
+                    if (mutation.type === "attributes") {
+                        const profile = mutation.target.closest?.(PROFILE_SELECTORS);
+                        if (profile) this.queueColorRefresh(profile);
+                        continue;
+                    }
+
+                    for (const node of mutation.addedNodes) {
+                        if (node.nodeType !== Node.ELEMENT_NODE) continue;
+                        for (const profile of this.findProfileRoots(node)) this.addAmbientGlow(profile);
                     }
                 }
             });
 
             const appMount = document.getElementById("app-mount") || document.body;
-            this.observer.observe(appMount, { childList: true, subtree: true });
+            this.observer.observe(appMount, {
+                childList: true,
+                subtree: true,
+                attributes: true,
+                attributeFilter: ["class", "src", "style"]
+            });
         } catch (err) {
-            console.error("AmbientProfilePopouts başlatılırken hata oluştu:", err);
+            console.error(`${PLUGIN_NAME} start failed:`, err);
         }
     }
 
@@ -45,7 +67,8 @@ module.exports = class AmbientProfilePopouts {
         BdApi.DOM.removeStyle("AmbientProfileCSS");
         if (this.observer) this.observer.disconnect();
         if (this.updateInterval) clearInterval(this.updateInterval);
-        document.querySelectorAll('.ambient-profile-container').forEach(el => el.remove());
+        document.querySelectorAll(".ambient-profile-container").forEach(el => el.remove());
+        document.querySelectorAll(".ambient-profile-root").forEach(el => el.classList.remove("ambient-profile-root"));
     }
 
     async checkForUpdates(silent = false) {
@@ -61,7 +84,7 @@ module.exports = class AmbientProfilePopouts {
             const localContent = fs.existsSync(targetPath) ? fs.readFileSync(targetPath, "utf8") : "";
             const currentVersion = addon?.version || this.getMetaValue(localContent, "version");
 
-            if (!currentVersion) throw new Error("Yerel surum okunamadi.");
+            if (!currentVersion) throw new Error("Local version could not be read.");
 
             const response = await BdApi.Net.fetch(this.withCacheBuster(UPDATE_URL), {
                 headers: {
@@ -72,7 +95,7 @@ module.exports = class AmbientProfilePopouts {
             });
 
             if (!response || !response.ok) {
-                throw new Error(`Guncelleme dosyasi alinamadi. HTTP ${response?.status || "?"}`);
+                throw new Error(`Update file could not be fetched. HTTP ${response?.status || "?"}`);
             }
 
             const remoteContent = await response.text();
@@ -86,10 +109,10 @@ module.exports = class AmbientProfilePopouts {
             fs.writeFileSync(tempPath, remoteContent, "utf8");
             fs.renameSync(tempPath, targetPath);
 
-            BdApi.UI?.showToast?.(`${PLUGIN_NAME} ${remoteVersion} indirildi. Discord'u yenile.`, {type: "success"});
-            console.log(`${PLUGIN_NAME} ${currentVersion} -> ${remoteVersion} guncellendi.`);
+            BdApi.UI?.showToast?.(`${PLUGIN_NAME} ${remoteVersion} downloaded. Reload Discord.`, {type: "success"});
+            console.log(`${PLUGIN_NAME} ${currentVersion} -> ${remoteVersion} updated.`);
         } catch (err) {
-            if (!silent) console.error(`${PLUGIN_NAME} guncelleme kontrolu basarisiz:`, err);
+            if (!silent) console.error(`${PLUGIN_NAME} update check failed:`, err);
         } finally {
             this.isCheckingForUpdates = false;
         }
@@ -100,10 +123,10 @@ module.exports = class AmbientProfilePopouts {
     }
 
     validateUpdate(content, name, version) {
-        if (name !== PLUGIN_NAME) throw new Error("Uzak dosyanin plugin adi farkli.");
-        if (!version || !/^\d+(?:\.\d+){1,3}$/.test(version)) throw new Error("Uzak dosyanin surumu gecersiz.");
-        if (!content.includes("module.exports")) throw new Error("Uzak dosya plugin govdesi icermiyor.");
-        if (content.length < 1000) throw new Error("Uzak dosya beklenenden kisa gorunuyor.");
+        if (name !== PLUGIN_NAME) throw new Error("Remote plugin name does not match.");
+        if (!version || !/^\d+(?:\.\d+){1,3}$/.test(version)) throw new Error("Remote plugin version is invalid.");
+        if (!content.includes("module.exports")) throw new Error("Remote file does not look like a plugin.");
+        if (content.length < 1000) throw new Error("Remote file looks unexpectedly short.");
     }
 
     getMetaValue(content, key) {
@@ -128,89 +151,124 @@ module.exports = class AmbientProfilePopouts {
 
     injectCSS() {
         const css = `
-        /* 1. ADIM: İnatçı Tema Değişkenlerini Nötralize Et */
-        [class*="userProfileOuter_"] {
-            --profile-gradient-primary-color: transparent !important;
-            --profile-gradient-secondary-color: transparent !important;
-            --profile-avatar-border-color: transparent !important;
-            --profile-body-background-color: rgba(0, 0, 0, 0.4) !important;
-            
-            background: rgba(10, 10, 10, 0.6) !important;
-            backdrop-filter: blur(25px) saturate(150%) !important;
+        .ambient-profile-root {
+            --ambient-base: 114, 137, 218;
+            --ambient-bright: 153, 170, 255;
+            --ambient-soft: 230, 235, 255;
+            --ambient-panel-alpha: 0.62;
+            --ambient-edge-alpha: 0.52;
             position: relative !important;
             overflow: hidden !important;
-            border-radius: 12px;
-            box-shadow: 0 0 30px rgba(0, 0, 0, 0.8) !important;
-            z-index: 1;
+            isolation: isolate !important;
+            border-radius: inherit;
+            background:
+                linear-gradient(160deg, rgba(var(--ambient-base), 0.24), rgba(12, 12, 16, var(--ambient-panel-alpha)) 42%, rgba(0, 0, 0, 0.52)),
+                var(--background-floating, rgba(18, 18, 22, 0.88)) !important;
+            box-shadow:
+                0 18px 46px rgba(0, 0, 0, 0.42),
+                0 0 30px rgba(var(--ambient-base), 0.18) !important;
+            backdrop-filter: blur(22px) saturate(150%) !important;
         }
 
-        /* 2. ADIM: İç Katmanlardaki Katı Renkleri Zorla Gizle */
-        [class*="userProfileInner_"] {
-            background: transparent !important;
-            position: relative;
+        .ambient-profile-root > :not(.ambient-profile-container) {
+            position: relative !important;
             z-index: 2 !important;
         }
-        
-        [class*="userProfileInner_"]::before {
-            display: none !important; 
+
+        .ambient-profile-root [class*="userProfileInner_"],
+        .ambient-profile-root [class*="profileInner_"],
+        .ambient-profile-root [class*="overlayBackground_"] {
+            background-color: rgba(8, 8, 12, 0.34) !important;
+            background-image: none !important;
+            backdrop-filter: blur(8px) saturate(125%);
         }
 
-        /* 3. ADIM: Gösterişli Işık Katmanları */
+        .ambient-profile-root [class*="userProfileInner_"]::before,
+        .ambient-profile-root [class*="profileInner_"]::before {
+            opacity: 0.18 !important;
+        }
+
         .ambient-profile-container {
             position: absolute;
             inset: 0;
-            z-index: 0;
-            pointer-events: none;
-            overflow: hidden;
             border-radius: inherit;
+            overflow: hidden;
+            pointer-events: none;
+            z-index: 0;
+            background:
+                radial-gradient(circle at 18% 18%, rgba(var(--ambient-soft), 0.22), transparent 34%),
+                radial-gradient(circle at 82% 12%, rgba(var(--ambient-bright), 0.20), transparent 32%),
+                linear-gradient(135deg, rgba(var(--ambient-base), 0.16), transparent 54%);
         }
 
         .ambient-glow-main {
             position: absolute;
-            inset: -50%;
-            background: radial-gradient(circle at 50% 50%, var(--ambient-color, rgba(114, 137, 218, 0.5)) 0%, transparent 60%);
+            inset: -42%;
+            background:
+                radial-gradient(circle at 30% 35%, rgba(var(--ambient-base), 0.70), transparent 46%),
+                radial-gradient(circle at 72% 70%, rgba(var(--ambient-bright), 0.38), transparent 42%),
+                conic-gradient(from 120deg, rgba(var(--ambient-base), 0.12), rgba(var(--ambient-bright), 0.26), rgba(var(--ambient-soft), 0.10), rgba(var(--ambient-base), 0.12));
             background-size: 150% 150%;
-            opacity: 0.8;
-            animation: ambientGlowMove 15s ease-in-out infinite alternate;
+            filter: blur(30px) saturate(145%);
+            opacity: 0.82;
+            animation: ambientGlowMove 18s ease-in-out infinite alternate;
         }
 
         .ambient-glow-pop {
             position: absolute;
-            top: 20%; left: 50%;
-            width: 80%; height: 80%;
+            top: 18%;
+            left: 50%;
+            width: 92%;
+            height: 68%;
             transform: translate(-50%, -50%) scale(1);
-            background: radial-gradient(circle, var(--ambient-color-bright, rgba(114, 137, 218, 0.7)) 0%, transparent 50%);
-            opacity: 0.6;
-            filter: blur(40px);
-            animation: neonPulse 8s ease-in-out infinite alternate;
+            background: radial-gradient(circle, rgba(var(--ambient-bright), 0.58), transparent 58%);
+            opacity: 0.48;
+            filter: blur(42px);
+            animation: neonPulse 9s ease-in-out infinite alternate;
         }
 
-        /* Kenar Sızması */
-        [class*="userProfileOuter_"]::after {
-            content: '';
+        .ambient-glow-sheen {
             position: absolute;
             inset: -2px;
+            background:
+                linear-gradient(115deg, transparent 0%, rgba(255, 255, 255, 0.16) 38%, transparent 58%),
+                linear-gradient(180deg, rgba(var(--ambient-soft), 0.10), transparent 42%);
+            mix-blend-mode: screen;
+            opacity: 0.62;
+            animation: ambientSheen 12s ease-in-out infinite;
+        }
+
+        .ambient-profile-root::after {
+            content: '';
+            position: absolute;
+            inset: 0;
             border-radius: inherit;
-            padding: 2px;
-            background: linear-gradient(135deg, transparent 40%, var(--ambient-color-bright, rgba(114, 137, 218, 0.5)) 50%, transparent 60%);
+            padding: 1px;
+            background:
+                linear-gradient(135deg, rgba(var(--ambient-soft), 0.34), rgba(var(--ambient-bright), var(--ambient-edge-alpha)) 34%, transparent 62%, rgba(var(--ambient-base), 0.34));
             background-size: 200% 200%;
             -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
             -webkit-mask-composite: xor;
             mask-composite: exclude;
             pointer-events: none;
-            z-index: 5;
-            animation: borderRotate 6s linear infinite;
+            z-index: 4;
+            animation: borderRotate 7s linear infinite;
         }
 
         @keyframes ambientGlowMove {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
+            0% { transform: translate3d(-2%, -1%, 0) rotate(0deg) scale(1); background-position: 0% 50%; }
+            50% { transform: translate3d(2%, 1%, 0) rotate(8deg) scale(1.04); background-position: 100% 50%; }
+            100% { transform: translate3d(-1%, 2%, 0) rotate(-6deg) scale(1.02); background-position: 0% 50%; }
         }
 
         @keyframes neonPulse {
-            0% { transform: translate(-50%, -50%) scale(1); opacity: 0.3; }
-            100% { transform: translate(-50%, -50%) scale(1.1); opacity: 0.6; }
+            0% { transform: translate(-50%, -50%) scale(0.94); opacity: 0.30; }
+            100% { transform: translate(-50%, -50%) scale(1.12); opacity: 0.58; }
+        }
+
+        @keyframes ambientSheen {
+            0%, 100% { transform: translateX(-18%); opacity: 0.32; }
+            50% { transform: translateX(18%); opacity: 0.64; }
         }
 
         @keyframes borderRotate {
@@ -221,61 +279,172 @@ module.exports = class AmbientProfilePopouts {
         BdApi.DOM.addStyle("AmbientProfileCSS", css);
     }
 
+    scanExistingProfiles() {
+        for (const profile of document.querySelectorAll(PROFILE_SELECTORS)) this.addAmbientGlow(profile);
+    }
+
+    findProfileRoots(node) {
+        const roots = new Set();
+        if (node.matches?.(PROFILE_SELECTORS)) roots.add(node);
+        node.querySelectorAll?.(PROFILE_SELECTORS).forEach(profile => roots.add(profile));
+        return roots;
+    }
+
     addAmbientGlow(popout) {
-        if (popout.querySelector('.ambient-profile-container')) return;
+        if (!popout) return;
+
+        if (popout.querySelector(".ambient-profile-container")) {
+            popout.classList.add("ambient-profile-root");
+            this.queueColorRefresh(popout);
+            return;
+        }
 
         setTimeout(() => {
-            let imgUrl = null;
-            const activityImg = popout.querySelector('img[src*="i.scdn.co"], img[src*="spotify"]');
-            const avatarImg = popout.querySelector('svg foreignObject img, img[class*="avatar"]');
+            if (!document.body.contains(popout) || popout.querySelector(".ambient-profile-container")) return;
 
-            if (activityImg) {
-                imgUrl = activityImg.src;
-            } else if (avatarImg) {
-                imgUrl = avatarImg.src;
+            popout.classList.add("ambient-profile-root");
+
+            const containerDiv = document.createElement("div");
+            containerDiv.className = "ambient-profile-container";
+
+            const mainGlow = document.createElement("div");
+            mainGlow.className = "ambient-glow-main";
+            containerDiv.appendChild(mainGlow);
+
+            const popGlow = document.createElement("div");
+            popGlow.className = "ambient-glow-pop";
+            containerDiv.appendChild(popGlow);
+
+            const sheen = document.createElement("div");
+            sheen.className = "ambient-glow-sheen";
+            containerDiv.appendChild(sheen);
+
+            popout.insertBefore(containerDiv, popout.firstChild);
+            this.updateProfileColors(popout);
+        }, 180);
+    }
+
+    queueColorRefresh(popout) {
+        const existingTimer = this.colorRefreshTimers?.get(popout);
+        if (existingTimer) clearTimeout(existingTimer);
+
+        const timer = setTimeout(() => {
+            this.colorRefreshTimers?.delete(popout);
+            if (document.body.contains(popout)) this.updateProfileColors(popout);
+        }, 180);
+
+        this.colorRefreshTimers?.set(popout, timer);
+    }
+
+    updateProfileColors(popout) {
+        this.applyFallbackColors(popout);
+        this.applyImageColors(popout);
+    }
+
+    applyFallbackColors(popout) {
+        const computed = getComputedStyle(popout);
+        const candidates = [
+            computed.getPropertyValue("--profile-gradient-primary-color"),
+            computed.getPropertyValue("--profile-gradient-secondary-color"),
+            computed.getPropertyValue("--brand-500"),
+            computed.getPropertyValue("--background-accent"),
+            computed.getPropertyValue("--interactive-active")
+        ];
+        const rgb = candidates.map(value => this.parseCssColor(value)).find(Boolean) || [114, 137, 218];
+        this.setAmbientColors(popout, rgb);
+    }
+
+    applyImageColors(popout) {
+        const img = this.pickBestImage(popout);
+        if (!img?.src) return;
+
+        const probe = new Image();
+        probe.crossOrigin = "Anonymous";
+        probe.onload = () => {
+            const rgb = this.sampleImageColor(probe);
+            if (rgb) this.setAmbientColors(popout, rgb);
+        };
+        probe.onerror = () => {};
+        probe.src = this.normalizeImageUrl(img.src);
+    }
+
+    pickBestImage(popout) {
+        const images = Array.from(popout.querySelectorAll(IMAGE_SELECTORS)).filter(img => img.src);
+        return images.find(img => img.src.includes("i.scdn.co") || img.src.includes("spotify"))
+            || images.find(img => img.width >= 64 || img.height >= 64)
+            || images[0];
+    }
+
+    normalizeImageUrl(src) {
+        if (!src.includes("cdn.discordapp.com") && !src.includes("media.discordapp.net")) return src;
+        const cleanUrl = src.split("?")[0];
+        return cleanUrl + "?size=128";
+    }
+
+    sampleImageColor(img) {
+        try {
+            const canvas = document.createElement("canvas");
+            const size = 12;
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext("2d", {willReadFrequently: true});
+            ctx.drawImage(img, 0, 0, size, size);
+            const pixels = ctx.getImageData(0, 0, size, size).data;
+            let r = 0;
+            let g = 0;
+            let b = 0;
+            let count = 0;
+
+            for (let i = 0; i < pixels.length; i += 4) {
+                const alpha = pixels[i + 3];
+                if (alpha < 90) continue;
+                const pr = pixels[i];
+                const pg = pixels[i + 1];
+                const pb = pixels[i + 2];
+                const brightness = (pr + pg + pb) / 3;
+                if (brightness < 18 || brightness > 242) continue;
+                r += pr;
+                g += pg;
+                b += pb;
+                count++;
             }
 
-            if (!imgUrl) return;
+            if (!count) return null;
+            return [Math.round(r / count), Math.round(g / count), Math.round(b / count)];
+        } catch {
+            return null;
+        }
+    }
 
-            const cleanUrl = imgUrl.split('?')[0] + '?size=128';
-            
-            const img = new Image();
-            img.crossOrigin = "Anonymous";
-            img.src = cleanUrl;
-            
-            img.onload = () => {
-                try {
-                    const canvas = document.createElement('canvas');
-                    canvas.width = 1; canvas.height = 1;
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(img, 0, 0, 1, 1);
-                    const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
-                    
-                    const baseColor = "rgb(" + r + ", " + g + ", " + b + ")";
-                    
-                    const br = Math.min(255, Math.floor(r * 1.4));
-                    const bg = Math.min(255, Math.floor(g * 1.4));
-                    const bb = Math.min(255, Math.floor(b * 1.4));
-                    const brightColor = "rgb(" + br + ", " + bg + ", " + bb + ")";
-                    
-                    const containerDiv = document.createElement('div');
-                    containerDiv.className = 'ambient-profile-container';
-                    
-                    const mainGlow = document.createElement('div');
-                    mainGlow.className = 'ambient-glow-main';
-                    mainGlow.style.setProperty('--ambient-color', baseColor);
-                    containerDiv.appendChild(mainGlow);
+    setAmbientColors(popout, rgb) {
+        const base = this.boostColor(rgb);
+        const bright = this.mixColor(base, [255, 255, 255], 0.28);
+        const soft = this.mixColor(base, [255, 255, 255], 0.58);
 
-                    const popGlow = document.createElement('div');
-                    popGlow.className = 'ambient-glow-pop';
-                    popGlow.style.setProperty('--ambient-color-bright', brightColor);
-                    containerDiv.appendChild(popGlow);
+        popout.style.setProperty("--ambient-base", base.join(", "));
+        popout.style.setProperty("--ambient-bright", bright.join(", "));
+        popout.style.setProperty("--ambient-soft", soft.join(", "));
+    }
 
-                    popout.style.setProperty('--ambient-color-bright', "rgba(" + br + ", " + bg + ", " + bb + ", 1)");
-                    
-                    popout.insertBefore(containerDiv, popout.firstChild);
-                } catch (e) {}
-            };
-        }, 200); 
+    boostColor(rgb) {
+        const max = Math.max(...rgb);
+        const scale = max < 150 ? 150 / Math.max(max, 1) : 1;
+        return rgb.map(value => Math.max(36, Math.min(255, Math.round(value * scale))));
+    }
+
+    mixColor(a, b, amount) {
+        return a.map((value, index) => Math.round(value + (b[index] - value) * amount));
+    }
+
+    parseCssColor(value) {
+        if (!value || value.includes("transparent")) return null;
+        const rgbMatch = value.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+        if (rgbMatch) return rgbMatch.slice(1, 4).map(Number);
+        const hexMatch = value.trim().match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+        if (!hexMatch) return null;
+        const hex = hexMatch[1].length === 3
+            ? hexMatch[1].split("").map(char => char + char).join("")
+            : hexMatch[1];
+        return [0, 2, 4].map(index => parseInt(hex.slice(index, index + 2), 16));
     }
 };
