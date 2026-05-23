@@ -1,8 +1,8 @@
 /**
  * @name AmbientProfilePopouts
  * @author s7lace
- * @version 1.1.11
- * @description Adds adaptive ambient glow effects to Discord profile popouts.
+ * @version 1.2.0
+ * @description Adds adaptive ambient glow effects and useful profile tools to Discord profile popouts.
  * @updateUrl https://raw.githubusercontent.com/7solace/AmbientProfilePopouts/main/AmbientProfilePopouts.plugin.js
  * @downloadUrl https://raw.githubusercontent.com/7solace/AmbientProfilePopouts/main/AmbientProfilePopouts.plugin.js
  */
@@ -56,7 +56,7 @@ module.exports = class AmbientProfilePopouts {
                 childList: true,
                 subtree: true,
                 attributes: true,
-                attributeFilter: ["class", "src", "style"]
+                attributeFilter: ["class", "src"]
             });
         } catch (err) {
             console.error(`${PLUGIN_NAME} start failed:`, err);
@@ -68,6 +68,8 @@ module.exports = class AmbientProfilePopouts {
         if (this.observer) this.observer.disconnect();
         if (this.updateInterval) clearInterval(this.updateInterval);
         document.querySelectorAll(".ambient-profile-container").forEach(el => el.remove());
+        document.querySelectorAll(".ambient-profile-tools").forEach(el => el.remove());
+        document.querySelectorAll(".ambient-profile-note").forEach(el => el.remove());
         document.querySelectorAll(".ambient-profile-root").forEach(el => el.classList.remove("ambient-profile-root"));
     }
 
@@ -255,6 +257,102 @@ module.exports = class AmbientProfilePopouts {
             animation: borderRotate 7s linear infinite;
         }
 
+        .ambient-profile-tools {
+            position: absolute;
+            right: 44px;
+            top: 10px;
+            z-index: 6;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px;
+            border: 1px solid rgba(var(--ambient-soft), 0.20);
+            border-radius: 10px;
+            background: rgba(12, 12, 16, 0.50);
+            box-shadow: 0 10px 26px rgba(0, 0, 0, 0.30);
+            backdrop-filter: blur(14px) saturate(145%);
+            pointer-events: auto;
+        }
+
+        .ambient-profile-tool {
+            height: 28px;
+            min-width: 34px;
+            padding: 0 9px;
+            border: 0;
+            border-radius: 7px;
+            color: var(--interactive-active, #fff);
+            background: rgba(255, 255, 255, 0.08);
+            font-size: 12px;
+            font-weight: 700;
+            line-height: 28px;
+            cursor: pointer;
+            transition: background 160ms ease, color 160ms ease, transform 160ms ease;
+        }
+
+        .ambient-profile-tool:hover:not(:disabled) {
+            background: rgba(var(--ambient-bright), 0.24);
+            color: #fff;
+            transform: translateY(-1px);
+        }
+
+        .ambient-profile-tool:disabled {
+            cursor: not-allowed;
+            opacity: 0.42;
+        }
+
+        .ambient-profile-note {
+            position: absolute;
+            right: 44px;
+            top: 52px;
+            z-index: 7;
+            width: min(280px, calc(100% - 64px));
+            padding: 10px;
+            border: 1px solid rgba(var(--ambient-soft), 0.22);
+            border-radius: 10px;
+            background: rgba(10, 10, 14, 0.86);
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.42);
+            backdrop-filter: blur(18px) saturate(145%);
+            pointer-events: auto;
+        }
+
+        .ambient-profile-note[hidden] {
+            display: none;
+        }
+
+        .ambient-profile-note textarea {
+            box-sizing: border-box;
+            width: 100%;
+            min-height: 86px;
+            resize: vertical;
+            border: 0;
+            outline: none;
+            border-radius: 8px;
+            padding: 9px;
+            color: var(--text-normal, #dbdee1);
+            background: rgba(0, 0, 0, 0.32);
+            font: 500 12px/1.4 var(--font-primary, sans-serif);
+        }
+
+        .ambient-profile-note-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+            margin-top: 8px;
+            color: var(--text-muted, #949ba4);
+            font-size: 11px;
+        }
+
+        .ambient-profile-note-clear {
+            border: 0;
+            border-radius: 6px;
+            padding: 5px 8px;
+            color: var(--interactive-normal, #b5bac1);
+            background: rgba(255, 255, 255, 0.08);
+            cursor: pointer;
+            font-size: 11px;
+        }
+
         @keyframes ambientGlowMove {
             0% { transform: translate3d(-2%, -1%, 0) rotate(0deg) scale(1); background-position: 0% 50%; }
             50% { transform: translate3d(2%, 1%, 0) rotate(8deg) scale(1.04); background-position: 100% 50%; }
@@ -296,6 +394,7 @@ module.exports = class AmbientProfilePopouts {
         if (popout.querySelector(".ambient-profile-container")) {
             popout.classList.add("ambient-profile-root");
             this.queueColorRefresh(popout);
+            this.ensureProfileTools(popout);
             return;
         }
 
@@ -321,6 +420,7 @@ module.exports = class AmbientProfilePopouts {
 
             popout.insertBefore(containerDiv, popout.firstChild);
             this.updateProfileColors(popout);
+            this.ensureProfileTools(popout);
         }, 180);
     }
 
@@ -434,6 +534,216 @@ module.exports = class AmbientProfilePopouts {
 
     mixColor(a, b, amount) {
         return a.map((value, index) => Math.round(value + (b[index] - value) * amount));
+    }
+
+    ensureProfileTools(popout) {
+        if (popout.querySelector(".ambient-profile-tools")) {
+            this.updateProfileTools(popout);
+            return;
+        }
+
+        const tools = document.createElement("div");
+        tools.className = "ambient-profile-tools";
+
+        const copyId = this.createToolButton("ID", "Copy user ID", () => {
+            const data = this.getProfileData(popout);
+            if (!data.id) return this.toast("User ID not found.", "error");
+            this.copyText(data.id, "User ID copied.");
+        });
+
+        const copyName = this.createToolButton("User", "Copy username", () => {
+            const data = this.getProfileData(popout);
+            if (!data.username) return this.toast("Username not found.", "error");
+            this.copyText(data.username, "Username copied.");
+        });
+
+        const copyLink = this.createToolButton("Link", "Copy profile link", () => {
+            const data = this.getProfileData(popout);
+            if (!data.id) return this.toast("Profile link needs a user ID.", "error");
+            this.copyText(`https://discord.com/users/${data.id}`, "Profile link copied.");
+        });
+
+        const spotify = this.createToolButton("Song", "Open Spotify link", () => {
+            const link = this.getSpotifyLink(popout);
+            if (!link) return this.toast("Spotify link not found.", "error");
+            window.open(link, "_blank");
+        });
+
+        const note = this.createToolButton("Note", "Private local note", () => this.toggleNotePanel(popout));
+
+        tools.append(copyId, copyName, copyLink, spotify, note);
+        popout.appendChild(tools);
+        this.updateProfileTools(popout);
+    }
+
+    updateProfileTools(popout) {
+        const data = this.getProfileData(popout);
+        const tools = popout.querySelector(".ambient-profile-tools");
+        if (!tools) return;
+
+        const [copyId, copyName, copyLink, spotify] = tools.querySelectorAll(".ambient-profile-tool");
+        if (copyId) copyId.disabled = !data.id;
+        if (copyName) copyName.disabled = !data.username;
+        if (copyLink) copyLink.disabled = !data.id;
+        if (spotify) spotify.disabled = !this.getSpotifyLink(popout);
+    }
+
+    createToolButton(label, title, onClick) {
+        const button = document.createElement("button");
+        button.className = "ambient-profile-tool";
+        button.type = "button";
+        button.textContent = label;
+        button.title = title;
+        button.addEventListener("click", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            onClick();
+        });
+        return button;
+    }
+
+    toggleNotePanel(popout) {
+        let panel = popout.querySelector(".ambient-profile-note");
+        if (!panel) panel = this.createNotePanel(popout);
+        panel.hidden = !panel.hidden;
+        if (!panel.hidden) panel.querySelector("textarea")?.focus();
+    }
+
+    createNotePanel(popout) {
+        const panel = document.createElement("div");
+        panel.className = "ambient-profile-note";
+        panel.hidden = true;
+
+        const textarea = document.createElement("textarea");
+        textarea.spellcheck = false;
+        textarea.placeholder = "Private note for this profile...";
+
+        const footer = document.createElement("div");
+        footer.className = "ambient-profile-note-footer";
+
+        const status = document.createElement("span");
+        status.textContent = "Saved locally";
+
+        const clear = document.createElement("button");
+        clear.className = "ambient-profile-note-clear";
+        clear.type = "button";
+        clear.textContent = "Clear";
+
+        footer.append(status, clear);
+        panel.append(textarea, footer);
+        popout.appendChild(panel);
+
+        const refresh = () => {
+            const key = this.getNoteKey(popout);
+            textarea.value = key ? this.getNotes()[key] || "" : "";
+            textarea.disabled = !key;
+            status.textContent = key ? "Saved locally" : "Profile key not found";
+        };
+
+        textarea.addEventListener("input", () => {
+            const key = this.getNoteKey(popout);
+            if (!key) return;
+            const notes = this.getNotes();
+            const value = textarea.value.trim();
+            if (value) notes[key] = textarea.value;
+            else delete notes[key];
+            this.saveNotes(notes);
+            status.textContent = "Saved";
+        });
+
+        clear.addEventListener("click", () => {
+            const key = this.getNoteKey(popout);
+            if (!key) return;
+            const notes = this.getNotes();
+            delete notes[key];
+            this.saveNotes(notes);
+            textarea.value = "";
+            status.textContent = "Cleared";
+        });
+
+        refresh();
+        return panel;
+    }
+
+    getProfileData(popout) {
+        const id = this.extractUserId(popout);
+        const username = this.extractUsername(popout);
+        return {id, username};
+    }
+
+    extractUserId(popout) {
+        const values = [];
+        popout.querySelectorAll("img[src], source[srcset], a[href]").forEach(element => {
+            values.push(element.src, element.srcset, element.href);
+        });
+        popout.querySelectorAll("[style]").forEach(element => values.push(element.getAttribute("style")));
+
+        for (const value of values.filter(Boolean)) {
+            const match = String(value).match(/(?:avatars|banners)\/(\d{16,22})\//);
+            if (match) return match[1];
+        }
+
+        return "";
+    }
+
+    extractUsername(popout) {
+        const selectors = [
+            '[class*="nickname_"]',
+            '[class*="username_"]',
+            '[class*="userTag_"]',
+            'h1',
+            '[aria-label*="profile"]'
+        ];
+
+        for (const selector of selectors) {
+            const element = popout.querySelector(selector);
+            const text = element?.textContent?.trim();
+            if (text && text.length <= 80) return text;
+            const label = element?.getAttribute?.("aria-label")?.trim();
+            if (label && label.length <= 80) return label;
+        }
+
+        return "";
+    }
+
+    getSpotifyLink(popout) {
+        const link = popout.querySelector('a[href*="open.spotify.com"], a[href*="spotify.link"]');
+        return link?.href || "";
+    }
+
+    getNoteKey(popout) {
+        const data = this.getProfileData(popout);
+        if (data.id) return `id:${data.id}`;
+        if (data.username) return `name:${data.username.toLowerCase()}`;
+        return "";
+    }
+
+    getNotes() {
+        return BdApi.Data.load(PLUGIN_NAME, "profileNotes") || {};
+    }
+
+    saveNotes(notes) {
+        BdApi.Data.save(PLUGIN_NAME, "profileNotes", notes);
+    }
+
+    async copyText(text, message) {
+        try {
+            await navigator.clipboard.writeText(text);
+        } catch {
+            const input = document.createElement("textarea");
+            input.value = text;
+            input.style.position = "fixed";
+            input.style.opacity = "0";
+            document.body.appendChild(input);
+            input.select();
+            document.execCommand("copy");
+            input.remove();
+        }
+        this.toast(message, "success");
+    }
+
+    toast(message, type = "info") {
+        BdApi.UI?.showToast?.(message, {type});
     }
 
     parseCssColor(value) {
