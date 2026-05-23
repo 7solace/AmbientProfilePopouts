@@ -1,33 +1,37 @@
 /**
- * @name AmbientProfilePopouts.plugin.js
+ * @name AmbientProfilePopouts
  * @author s7lace
- * @version 1.0.9
- * @description bombo (özel temalarda da çalışma eylemi)
- * @updateUrl https://raw.githubusercontent.com/7solace/ambientprofilepopouts.plugin/main/AmbientProfilePopouts.plugin.js
- * @downloadUrl https://raw.githubusercontent.com/7solace/ambientprofilepopouts.plugin/main/AmbientProfilePopouts.plugin.js
+ * @version 1.1.0
+ * @description bombo (zorla tema nötralize)
+ * @updateUrl https://raw.githubusercontent.com/7solace/ambientprofilepopouts.plugin/main/ambientprofilepopouts.plugin.js
+ * @downloadUrl https://raw.githubusercontent.com/7solace/ambientprofilepopouts.plugin/main/ambientprofilepopouts.plugin.js
  */
 
 module.exports = class AmbientProfilePopouts {
     start() {
-        this.injectCSS();
-        
-        this.observer = new MutationObserver((mutations) => {
-            for (const m of mutations) {
-                for (const node of m.addedNodes) {
-                    if (node.nodeType === Node.ELEMENT_NODE) {
-                        if (node.matches && node.matches('[class*="userProfileOuter_"]')) {
-                            this.addAmbientGlow(node);
-                        } else if (node.querySelector) {
-                            const popout = node.querySelector('[class*="userProfileOuter_"]');
-                            if (popout) this.addAmbientGlow(popout);
+        try {
+            this.injectCSS();
+            
+            this.observer = new MutationObserver((mutations) => {
+                for (const m of mutations) {
+                    for (const node of m.addedNodes) {
+                        if (node.nodeType === Node.ELEMENT_NODE) {
+                            if (node.matches && node.matches('[class*="userProfileOuter_"]')) {
+                                this.addAmbientGlow(node);
+                            } else if (node.querySelector) {
+                                const popout = node.querySelector('[class*="userProfileOuter_"]');
+                                if (popout) this.addAmbientGlow(popout);
+                            }
                         }
                     }
                 }
-            }
-        });
+            });
 
-        const appMount = document.getElementById("app-mount") || document.body;
-        this.observer.observe(appMount, { childList: true, subtree: true });
+            const appMount = document.getElementById("app-mount") || document.body;
+            this.observer.observe(appMount, { childList: true, subtree: true });
+        } catch (err) {
+            console.error("AmbientProfilePopouts başlatılırken hata oluştu:", err);
+        }
     }
 
     stop() {
@@ -54,7 +58,7 @@ module.exports = class AmbientProfilePopouts {
             z-index: 1;
         }
 
-        /* 2. ADIM: İç Katmanlardaki Katı Renkleri Zorla Gizle (Işığımızı Kapatan Asıl Suçlular) */
+        /* 2. ADIM: İç Katmanlardaki Katı Renkleri Zorla Gizle */
         [class*="userProfileInner_"] {
             background: transparent !important;
             position: relative;
@@ -62,10 +66,10 @@ module.exports = class AmbientProfilePopouts {
         }
         
         [class*="userProfileInner_"]::before {
-            display: none !important; /* Nitro banner gradient cover'ını kaldırır */
+            display: none !important; 
         }
 
-        /* 3. ADIM: Gösterişli Işık Katmanları (Z-index 0 ile en alta yerleşir) */
+        /* 3. ADIM: Gösterişli Işık Katmanları */
         .ambient-profile-container {
             position: absolute;
             inset: 0;
@@ -137,7 +141,6 @@ module.exports = class AmbientProfilePopouts {
         setTimeout(() => {
             let imgUrl = null;
             const activityImg = popout.querySelector('img[src*="i.scdn.co"], img[src*="spotify"]');
-            // Avatar seçicisini tüm özel temaları kapsayacak şekilde genişlettik
             const avatarImg = popout.querySelector('svg foreignObject img, img[class*="avatar"]');
 
             if (activityImg) {
