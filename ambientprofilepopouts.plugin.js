@@ -1,8 +1,8 @@
 /**
  * @name AmbientProfilePopouts
  * @author s7lace
- * @version 1.0.8
- * @description bombo
+ * @version 1.0.9
+ * @description bombo (özel temalarda da çalışma eylemi)
  * @updateUrl https://raw.githubusercontent.com/7solace/ambientprofilepopouts.plugin/main/AmbientProfilePopouts.plugin.js
  * @downloadUrl https://raw.githubusercontent.com/7solace/ambientprofilepopouts.plugin/main/AmbientProfilePopouts.plugin.js
  */
@@ -38,66 +38,71 @@ module.exports = class AmbientProfilePopouts {
 
     injectCSS() {
         const css = `
-        /* Koyu Temalar İçin Cam Efekti */
-        .theme-dark [class*="userProfileOuter_"] {
-            background: rgba(10, 10, 10, 0.6) !important;
-            box-shadow: 0 0 30px rgba(0, 0, 0, 0.5), inset 0 0 1px 1px var(--background-modifier-accent, rgba(255,255,255,0.05));
-        }
-
-        /* Açık Temalar İçin Cam Efekti */
-        .theme-light [class*="userProfileOuter_"] {
-            background: rgba(255, 255, 255, 0.4) !important;
-            box-shadow: 0 0 30px rgba(0, 0, 0, 0.1), inset 0 0 1px 1px var(--background-modifier-accent, rgba(0,0,0,0.05));
-        }
-
-        /* Ortak Ana Çerçeve Ayarları */
+        /* 1. ADIM: İnatçı Tema Değişkenlerini Nötralize Et */
         [class*="userProfileOuter_"] {
-            backdrop-filter: blur(20px) saturate(150%) !important;
+            --profile-gradient-primary-color: transparent !important;
+            --profile-gradient-secondary-color: transparent !important;
+            --profile-avatar-border-color: transparent !important;
+            --profile-body-background-color: rgba(0, 0, 0, 0.4) !important;
+            
+            background: rgba(10, 10, 10, 0.6) !important;
+            backdrop-filter: blur(25px) saturate(150%) !important;
             position: relative !important;
             overflow: hidden !important;
-            z-index: 1;
             border-radius: 12px;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.8) !important;
+            z-index: 1;
         }
 
-        /* Gösterişli ışık konteyneri */
+        /* 2. ADIM: İç Katmanlardaki Katı Renkleri Zorla Gizle (Işığımızı Kapatan Asıl Suçlular) */
+        [class*="userProfileInner_"] {
+            background: transparent !important;
+            position: relative;
+            z-index: 2 !important;
+        }
+        
+        [class*="userProfileInner_"]::before {
+            display: none !important; /* Nitro banner gradient cover'ını kaldırır */
+        }
+
+        /* 3. ADIM: Gösterişli Işık Katmanları (Z-index 0 ile en alta yerleşir) */
         .ambient-profile-container {
             position: absolute;
             inset: 0;
             z-index: 0;
             pointer-events: none;
             overflow: hidden;
+            border-radius: inherit;
         }
 
-        /* Katman 1: Ana arka plan parlaması (Her temada güvenli opacity) */
         .ambient-glow-main {
             position: absolute;
             inset: -50%;
             background: radial-gradient(circle at 50% 50%, var(--ambient-color, rgba(114, 137, 218, 0.5)) 0%, transparent 60%);
             background-size: 150% 150%;
-            opacity: 0.5;
+            opacity: 0.8;
             animation: ambientGlowMove 15s ease-in-out infinite alternate;
         }
 
-        /* Katman 2: Ekstra neon parlama patlaması */
         .ambient-glow-pop {
             position: absolute;
             top: 20%; left: 50%;
             width: 80%; height: 80%;
             transform: translate(-50%, -50%) scale(1);
             background: radial-gradient(circle, var(--ambient-color-bright, rgba(114, 137, 218, 0.7)) 0%, transparent 50%);
-            opacity: 0.35;
-            filter: blur(50px);
+            opacity: 0.6;
+            filter: blur(40px);
             animation: neonPulse 8s ease-in-out infinite alternate;
         }
 
-        /* Kenar Neon Efekti */
+        /* Kenar Sızması */
         [class*="userProfileOuter_"]::after {
             content: '';
             position: absolute;
             inset: -2px;
             border-radius: inherit;
             padding: 2px;
-            background: linear-gradient(135deg, transparent 40%, var(--ambient-color-bright, rgba(114, 137, 218, 0.3)) 50%, transparent 60%);
+            background: linear-gradient(135deg, transparent 40%, var(--ambient-color-bright, rgba(114, 137, 218, 0.5)) 50%, transparent 60%);
             background-size: 200% 200%;
             -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
             -webkit-mask-composite: xor;
@@ -107,7 +112,6 @@ module.exports = class AmbientProfilePopouts {
             animation: borderRotate 6s linear infinite;
         }
 
-        /* Animasyonlar */
         @keyframes ambientGlowMove {
             0% { background-position: 0% 50%; }
             50% { background-position: 100% 50%; }
@@ -115,21 +119,13 @@ module.exports = class AmbientProfilePopouts {
         }
 
         @keyframes neonPulse {
-            0% { transform: translate(-50%, -50%) scale(1) rotate(0deg); opacity: 0.2; }
-            50% { opacity: 0.5; }
-            100% { transform: translate(-50%, -50%) scale(1.1) rotate(180deg); opacity: 0.2; }
+            0% { transform: translate(-50%, -50%) scale(1); opacity: 0.3; }
+            100% { transform: translate(-50%, -50%) scale(1.1); opacity: 0.6; }
         }
 
         @keyframes borderRotate {
             0% { background-position: 0% 0%; }
             100% { background-position: 200% 200%; }
-        }
-
-        /* İçeriği ışığın üstünde net tut */
-        [class*="userProfileInner_"] {
-            position: relative;
-            z-index: 2;
-            background: transparent !important;
         }
         `;
         BdApi.DOM.addStyle("AmbientProfileCSS", css);
@@ -141,7 +137,8 @@ module.exports = class AmbientProfilePopouts {
         setTimeout(() => {
             let imgUrl = null;
             const activityImg = popout.querySelector('img[src*="i.scdn.co"], img[src*="spotify"]');
-            const avatarImg = popout.querySelector('img[class*="avatar_"], svg foreignObject img');
+            // Avatar seçicisini tüm özel temaları kapsayacak şekilde genişlettik
+            const avatarImg = popout.querySelector('svg foreignObject img, img[class*="avatar"]');
 
             if (activityImg) {
                 imgUrl = activityImg.src;
@@ -167,10 +164,9 @@ module.exports = class AmbientProfilePopouts {
                     
                     const baseColor = "rgb(" + r + ", " + g + ", " + b + ")";
                     
-                    // Renk parlaklığını artır
-                    const br = Math.min(255, Math.floor(r * 1.3));
-                    const bg = Math.min(255, Math.floor(g * 1.3));
-                    const bb = Math.min(255, Math.floor(b * 1.3));
+                    const br = Math.min(255, Math.floor(r * 1.4));
+                    const bg = Math.min(255, Math.floor(g * 1.4));
+                    const bb = Math.min(255, Math.floor(b * 1.4));
                     const brightColor = "rgb(" + br + ", " + bg + ", " + bb + ")";
                     
                     const containerDiv = document.createElement('div');
@@ -186,7 +182,7 @@ module.exports = class AmbientProfilePopouts {
                     popGlow.style.setProperty('--ambient-color-bright', brightColor);
                     containerDiv.appendChild(popGlow);
 
-                    popout.style.setProperty('--ambient-color-bright', "rgba(" + br + ", " + bg + ", " + bb + ", 0.9)");
+                    popout.style.setProperty('--ambient-color-bright', "rgba(" + br + ", " + bg + ", " + bb + ", 1)");
                     
                     popout.insertBefore(containerDiv, popout.firstChild);
                 } catch (e) {}
