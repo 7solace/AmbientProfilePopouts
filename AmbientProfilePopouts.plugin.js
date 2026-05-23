@@ -1,7 +1,7 @@
 /**
  * @name AmbientProfilePopouts
  * @author s7lace
- * @version 1.3.5
+ * @version 1.4.0
  * @description Adds adaptive ambient glow effects and useful profile tools to Discord profile popouts.
  * @updateUrl https://raw.githubusercontent.com/7solace/AmbientProfilePopouts/main/AmbientProfilePopouts.plugin.js
  * @downloadUrl https://raw.githubusercontent.com/7solace/AmbientProfilePopouts/main/AmbientProfilePopouts.plugin.js
@@ -45,7 +45,201 @@ const SUSPICIOUS_DOMAINS = new Set([
     "2no.co"
 ]);
 
+const DEFAULT_SETTINGS = {
+    blurStrength: 22,
+    panelAlpha: 0.62,
+    glowOpacity: 0.82,
+    innerBlur: 8,
+    sheenOpacity: 0.62,
+    edgeAlpha: 0.52,
+    animationSpeed: 1.0,
+    hideTyping: true
+};
+
 module.exports = class AmbientProfilePopouts {
+
+    // ─── Settings ───────────────────────────────────────────────────────────────
+
+    getSettings() {
+        return Object.assign({}, DEFAULT_SETTINGS, BdApi.Data.load(PLUGIN_NAME, "settings") || {});
+    }
+
+    saveSettings(settings) {
+        BdApi.Data.save(PLUGIN_NAME, "settings", settings);
+    }
+
+    getSettingsPanel() {
+        const s = this.getSettings();
+
+        const wrap = document.createElement("div");
+        wrap.style.cssText = `
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+            font-family: var(--font-primary, sans-serif);
+            color: var(--text-normal, #dbdee1);
+        `;
+
+        const title = document.createElement("div");
+        title.style.cssText = "font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted, #949ba4); margin-bottom: 4px;";
+        title.textContent = "Ambient Profile Popouts — Ayarlar";
+        wrap.appendChild(title);
+
+        const sliders = [
+            { key: "blurStrength",    label: "Cam Bulanıklığı (Backdrop Blur)",  min: 0,   max: 60,  step: 1,   unit: "px",   desc: "Profil kartının cam bulanıklık yoğunluğu" },
+            { key: "innerBlur",       label: "İç Katman Bulanıklığı",            min: 0,   max: 30,  step: 1,   unit: "px",   desc: "Profil iç panellerinin blur değeri" },
+            { key: "panelAlpha",      label: "Arka Plan Saydamlığı",             min: 0,   max: 1,   step: 0.01, unit: "",    desc: "0 = tam saydam, 1 = tam opak" },
+            { key: "glowOpacity",     label: "Glow Yoğunluğu",                  min: 0,   max: 1,   step: 0.01, unit: "",    desc: "Ambient ışık efektinin yoğunluğu" },
+            { key: "sheenOpacity",    label: "Parlaklık (Sheen) Yoğunluğu",     min: 0,   max: 1,   step: 0.01, unit: "",    desc: "Kayan parlaklık efektinin yoğunluğu" },
+            { key: "edgeAlpha",       label: "Kenar Işığı",                      min: 0,   max: 1,   step: 0.01, unit: "",    desc: "Profil kartı kenar çerçevesinin parlaklığı" },
+            { key: "animationSpeed",  label: "Animasyon Hızı",                   min: 0.1, max: 3,   step: 0.1,  unit: "x",  desc: "1x = varsayılan, düşük = yavaş, yüksek = hızlı" },
+        ];
+
+        for (const slider of sliders) {
+            const row = document.createElement("div");
+            row.style.cssText = "display: flex; flex-direction: column; gap: 6px;";
+
+            const labelRow = document.createElement("div");
+            labelRow.style.cssText = "display: flex; justify-content: space-between; align-items: center;";
+
+            const labelEl = document.createElement("span");
+            labelEl.style.cssText = "font-size: 13px; font-weight: 600;";
+            labelEl.textContent = slider.label;
+
+            const valueEl = document.createElement("span");
+            valueEl.style.cssText = "font-size: 12px; font-weight: 700; color: rgba(114, 137, 218, 1); min-width: 44px; text-align: right;";
+            valueEl.textContent = String(s[slider.key]) + slider.unit;
+
+            labelRow.append(labelEl, valueEl);
+
+            const desc = document.createElement("div");
+            desc.style.cssText = "font-size: 11px; color: var(--text-muted, #949ba4);";
+            desc.textContent = slider.desc;
+
+            const input = document.createElement("input");
+            input.type = "range";
+            input.min = String(slider.min);
+            input.max = String(slider.max);
+            input.step = String(slider.step);
+            input.value = String(s[slider.key]);
+            input.style.cssText = `
+                width: 100%;
+                height: 4px;
+                -webkit-appearance: none;
+                appearance: none;
+                background: rgba(114, 137, 218, 0.25);
+                border-radius: 4px;
+                outline: none;
+                cursor: pointer;
+            `;
+
+            input.addEventListener("input", () => {
+                const val = parseFloat(input.value);
+                valueEl.textContent = String(slider.step < 1 ? val.toFixed(2) : val) + slider.unit;
+                const current = this.getSettings();
+                current[slider.key] = val;
+                this.saveSettings(current);
+                this.applySettingsToCSS(current);
+            });
+
+            row.append(labelRow, desc, input);
+            wrap.appendChild(row);
+        }
+
+        // Toggle: Yazıyor... gizle
+        const toggleRow = document.createElement("div");
+        toggleRow.style.cssText = "display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-top: 1px solid rgba(255,255,255,0.07);";
+
+        const toggleLabel = document.createElement("div");
+        toggleLabel.style.cssText = "display: flex; flex-direction: column; gap: 3px;";
+
+        const toggleTitle = document.createElement("span");
+        toggleTitle.style.cssText = "font-size: 13px; font-weight: 600;";
+        toggleTitle.textContent = "\"Yazıyor...\" Göstergesini Gizle";
+
+        const toggleDesc = document.createElement("span");
+        toggleDesc.style.cssText = "font-size: 11px; color: var(--text-muted, #949ba4);";
+        toggleDesc.textContent = "Mesaj yazarken çıkan animasyonu gizler";
+
+        toggleLabel.append(toggleTitle, toggleDesc);
+
+        const toggle = document.createElement("button");
+        const updateToggle = () => {
+            const on = this.getSettings().hideTyping;
+            toggle.style.cssText = `
+                width: 44px; height: 24px; border: 0; border-radius: 12px; cursor: pointer;
+                background: ${on ? "rgba(114, 137, 218, 0.9)" : "rgba(255,255,255,0.12)"};
+                transition: background 180ms ease; position: relative; flex-shrink: 0;
+            `;
+            toggle.innerHTML = `<span style="
+                position: absolute; top: 3px; left: ${on ? "23px" : "3px"};
+                width: 18px; height: 18px; border-radius: 50%;
+                background: #fff; transition: left 180ms ease; display: block;
+            "></span>`;
+        };
+        updateToggle();
+
+        toggle.addEventListener("click", () => {
+            const current = this.getSettings();
+            current.hideTyping = !current.hideTyping;
+            this.saveSettings(current);
+            updateToggle();
+            this.applySettingsToCSS(current);
+        });
+
+        toggleRow.append(toggleLabel, toggle);
+        wrap.appendChild(toggleRow);
+
+        // Reset butonu
+        const resetBtn = document.createElement("button");
+        resetBtn.textContent = "Varsayılana Sıfırla";
+        resetBtn.style.cssText = `
+            margin-top: 4px;
+            padding: 8px 14px;
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 8px;
+            background: rgba(255,255,255,0.06);
+            color: var(--text-normal, #dbdee1);
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            align-self: flex-start;
+            transition: background 160ms ease;
+        `;
+        resetBtn.addEventListener("mouseenter", () => resetBtn.style.background = "rgba(114,137,218,0.18)");
+        resetBtn.addEventListener("mouseleave", () => resetBtn.style.background = "rgba(255,255,255,0.06)");
+        resetBtn.addEventListener("click", () => {
+            this.saveSettings({...DEFAULT_SETTINGS});
+            this.applySettingsToCSS(DEFAULT_SETTINGS);
+            wrap.remove();
+            wrap.parentElement?.appendChild(this.getSettingsPanel());
+            this.toast("Ayarlar sıfırlandı.", "success");
+        });
+        wrap.appendChild(resetBtn);
+
+        return wrap;
+    }
+
+    applySettingsToCSS(s) {
+        BdApi.DOM.removeStyle("AmbientProfileCSS");
+        this.injectCSS(s);
+        // Mevcut profillere ayarları uygula
+        document.querySelectorAll(".ambient-profile-root").forEach(p => this.setProfileCSSVars(p, s));
+    }
+
+    setProfileCSSVars(popout, s) {
+        const blurPx = `${s.blurStrength}px`;
+        const innerBlurPx = `${s.innerBlur}px`;
+        const speed = s.animationSpeed;
+        popout.style.setProperty("--ambient-panel-alpha", String(s.panelAlpha));
+        popout.style.setProperty("--ambient-edge-alpha", String(s.edgeAlpha));
+        // glow opacity, sheen opacity ve blur dinamik olarak CSS'e bakıyor, yeniden inject yeterli
+        _ = blurPx; _ = innerBlurPx; _ = speed; // referans
+    }
+
+    // ─── Lifecycle ───────────────────────────────────────────────────────────────
+
     start() {
         try {
             this.colorRefreshTimers = new WeakMap();
@@ -53,7 +247,7 @@ module.exports = class AmbientProfilePopouts {
             document.addEventListener("click", this.handleShiftClickCopy, true);
             this.checkForUpdates();
             this.updateInterval = setInterval(() => this.checkForUpdates(true), UPDATE_CHECK_INTERVAL);
-            this.injectCSS();
+            this.injectCSS(this.getSettings());
             this.scanExistingProfiles();
             this.scanExistingMessageEnhancements();
 
@@ -109,6 +303,8 @@ module.exports = class AmbientProfilePopouts {
         document.querySelectorAll(".ambient-profile-root").forEach(el => el.classList.remove("ambient-profile-root"));
     }
 
+    // ─── Update ──────────────────────────────────────────────────────────────────
+
     async checkForUpdates(silent = false) {
         if (this.isCheckingForUpdates) return;
         this.isCheckingForUpdates = true;
@@ -125,16 +321,11 @@ module.exports = class AmbientProfilePopouts {
             if (!currentVersion) throw new Error("Local version could not be read.");
 
             const response = await BdApi.Net.fetch(this.withCacheBuster(UPDATE_URL), {
-                headers: {
-                    "Cache-Control": "no-cache",
-                    "Pragma": "no-cache"
-                },
+                headers: { "Cache-Control": "no-cache", "Pragma": "no-cache" },
                 timeout: 15000
             });
 
-            if (!response || !response.ok) {
-                throw new Error(`Update file could not be fetched. HTTP ${response?.status || "?"}`);
-            }
+            if (!response || !response.ok) throw new Error(`Update file could not be fetched. HTTP ${response?.status || "?"}`);
 
             const remoteContent = await response.text();
             const remoteName = this.getMetaValue(remoteContent, "name");
@@ -176,25 +367,45 @@ module.exports = class AmbientProfilePopouts {
         const remoteParts = remoteVersion.split(".").map(part => parseInt(part, 10) || 0);
         const currentParts = currentVersion.split(".").map(part => parseInt(part, 10) || 0);
         const length = Math.max(remoteParts.length, currentParts.length);
-
         for (let i = 0; i < length; i++) {
             const remotePart = remoteParts[i] || 0;
             const currentPart = currentParts[i] || 0;
             if (remotePart > currentPart) return true;
             if (remotePart < currentPart) return false;
         }
-
         return false;
     }
 
-    injectCSS() {
+    // ─── CSS ─────────────────────────────────────────────────────────────────────
+
+    injectCSS(s = DEFAULT_SETTINGS) {
+        const blurPx         = `${s.blurStrength}px`;
+        const innerBlurPx    = `${s.innerBlur}px`;
+        const panelAlpha     = s.panelAlpha;
+        const glowOpacity    = s.glowOpacity;
+        const sheenOpacity   = s.sheenOpacity;
+        const edgeAlpha      = s.edgeAlpha;
+        const animBase       = (18 / s.animationSpeed).toFixed(1);
+        const animPulse      = (9  / s.animationSpeed).toFixed(1);
+        const animSheen      = (12 / s.animationSpeed).toFixed(1);
+        const animBorder     = (7  / s.animationSpeed).toFixed(1);
+        const typingCSS      = s.hideTyping ? `
+        [class*="typing_"],
+        [class*="typingDots_"],
+        [class*="typingUsers_"] {
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+        }` : "";
+
         const css = `
         .ambient-profile-root {
             --ambient-base: 114, 137, 218;
             --ambient-bright: 153, 170, 255;
             --ambient-soft: 230, 235, 255;
-            --ambient-panel-alpha: 0.62;
-            --ambient-edge-alpha: 0.52;
+            --ambient-panel-alpha: ${panelAlpha};
+            --ambient-edge-alpha: ${edgeAlpha};
             position: relative !important;
             overflow: hidden !important;
             isolation: isolate !important;
@@ -205,7 +416,7 @@ module.exports = class AmbientProfilePopouts {
             box-shadow:
                 0 18px 46px rgba(0, 0, 0, 0.42),
                 0 0 30px rgba(var(--ambient-base), 0.18) !important;
-            backdrop-filter: blur(22px) saturate(150%) !important;
+            backdrop-filter: blur(${blurPx}) saturate(150%) !important;
         }
 
         .ambient-profile-root > :not(.ambient-profile-container) {
@@ -218,7 +429,7 @@ module.exports = class AmbientProfilePopouts {
         .ambient-profile-root [class*="overlayBackground_"] {
             background-color: rgba(8, 8, 12, 0.34) !important;
             background-image: none !important;
-            backdrop-filter: blur(8px) saturate(125%);
+            backdrop-filter: blur(${innerBlurPx}) saturate(125%);
         }
 
         .ambient-profile-root [class*="userProfileInner_"]::before,
@@ -248,8 +459,8 @@ module.exports = class AmbientProfilePopouts {
                 conic-gradient(from 120deg, rgba(var(--ambient-base), 0.12), rgba(var(--ambient-bright), 0.26), rgba(var(--ambient-soft), 0.10), rgba(var(--ambient-base), 0.12));
             background-size: 150% 150%;
             filter: blur(30px) saturate(145%);
-            opacity: 0.82;
-            animation: ambientGlowMove 18s ease-in-out infinite alternate;
+            opacity: ${glowOpacity};
+            animation: ambientGlowMove ${animBase}s ease-in-out infinite alternate;
         }
 
         .ambient-glow-pop {
@@ -262,7 +473,7 @@ module.exports = class AmbientProfilePopouts {
             background: radial-gradient(circle, rgba(var(--ambient-bright), 0.58), transparent 58%);
             opacity: 0.48;
             filter: blur(42px);
-            animation: neonPulse 9s ease-in-out infinite alternate;
+            animation: neonPulse ${animPulse}s ease-in-out infinite alternate;
         }
 
         .ambient-glow-sheen {
@@ -272,8 +483,8 @@ module.exports = class AmbientProfilePopouts {
                 linear-gradient(115deg, transparent 0%, rgba(255, 255, 255, 0.16) 38%, transparent 58%),
                 linear-gradient(180deg, rgba(var(--ambient-soft), 0.10), transparent 42%);
             mix-blend-mode: screen;
-            opacity: 0.62;
-            animation: ambientSheen 12s ease-in-out infinite;
+            opacity: ${sheenOpacity};
+            animation: ambientSheen ${animSheen}s ease-in-out infinite;
         }
 
         .ambient-profile-root::after {
@@ -290,7 +501,7 @@ module.exports = class AmbientProfilePopouts {
             mask-composite: exclude;
             pointer-events: none;
             z-index: 4;
-            animation: borderRotate 7s linear infinite;
+            animation: borderRotate ${animBorder}s linear infinite;
         }
 
         .ambient-profile-tools {
@@ -585,38 +796,34 @@ module.exports = class AmbientProfilePopouts {
             opacity: 0.88;
         }
 
-        [class*="typing_"],
-        [class*="typingDots_"],
-        [class*="typingUsers_"] {
-            display: none !important;
-            visibility: hidden !important;
-            opacity: 0 !important;
-            pointer-events: none !important;
-        }
+        ${typingCSS}
 
         @keyframes ambientGlowMove {
-            0% { transform: translate3d(-2%, -1%, 0) rotate(0deg) scale(1); background-position: 0% 50%; }
-            50% { transform: translate3d(2%, 1%, 0) rotate(8deg) scale(1.04); background-position: 100% 50%; }
+            0%   { transform: translate3d(-2%, -1%, 0) rotate(0deg) scale(1);    background-position: 0% 50%; }
+            50%  { transform: translate3d(2%, 1%, 0) rotate(8deg) scale(1.04);   background-position: 100% 50%; }
             100% { transform: translate3d(-1%, 2%, 0) rotate(-6deg) scale(1.02); background-position: 0% 50%; }
         }
 
         @keyframes neonPulse {
-            0% { transform: translate(-50%, -50%) scale(0.94); opacity: 0.30; }
+            0%   { transform: translate(-50%, -50%) scale(0.94); opacity: 0.30; }
             100% { transform: translate(-50%, -50%) scale(1.12); opacity: 0.58; }
         }
 
         @keyframes ambientSheen {
             0%, 100% { transform: translateX(-18%); opacity: 0.32; }
-            50% { transform: translateX(18%); opacity: 0.64; }
+            50%       { transform: translateX(18%);  opacity: 0.64; }
         }
 
         @keyframes borderRotate {
-            0% { background-position: 0% 0%; }
+            0%   { background-position: 0% 0%; }
             100% { background-position: 200% 200%; }
         }
         `;
+
         BdApi.DOM.addStyle("AmbientProfileCSS", css);
     }
+
+    // ─── Profile glow ────────────────────────────────────────────────────────────
 
     scanExistingProfiles() {
         for (const profile of document.querySelectorAll(PROFILE_SELECTORS)) this.addAmbientGlow(profile);
@@ -627,128 +834,6 @@ module.exports = class AmbientProfilePopouts {
         if (node.matches?.(PROFILE_SELECTORS)) roots.add(node);
         node.querySelectorAll?.(PROFILE_SELECTORS).forEach(profile => roots.add(profile));
         return roots;
-    }
-
-    scanExistingMessageEnhancements() {
-        this.enhanceMessageNode(document);
-    }
-
-    enhanceMessageNode(root) {
-        this.enhanceLinks(root);
-        this.enhanceCodeBlocks(root);
-    }
-
-    enhanceLinks(root) {
-        const anchors = [];
-        if (root.matches?.("a[href]")) anchors.push(root);
-        root.querySelectorAll?.("a[href]").forEach(anchor => anchors.push(anchor));
-
-        for (const anchor of anchors) this.enhanceLink(anchor);
-    }
-
-    enhanceLink(anchor) {
-        if (anchor.classList.contains("ambient-enhanced-link")) return;
-        if (!anchor.closest(LINK_SCOPE_SELECTORS)) return;
-        if (anchor.closest(".ambient-link-tools, .ambient-profile-tools, .ambient-profile-note")) return;
-        if (anchor.querySelector("img, video, canvas, svg")) return;
-
-        const url = this.parseHttpUrl(anchor.href);
-        if (!url) return;
-
-        const domain = this.getDisplayDomain(url);
-        if (!domain || domain === "discord.com") return;
-        const risk = this.getLinkRisk(url);
-
-        anchor.classList.add("ambient-enhanced-link");
-        anchor.dataset.ambientDomain = domain;
-        anchor.dataset.ambientRisk = risk;
-
-        const tools = document.createElement("span");
-        tools.className = "ambient-link-tools";
-        tools.contentEditable = "false";
-
-        const domainBadge = document.createElement("span");
-        domainBadge.className = "ambient-link-domain";
-        domainBadge.dataset.ambientRisk = risk;
-        domainBadge.textContent = risk === "safe" ? domain : `! ${domain}`;
-        domainBadge.title = this.getLinkRiskTitle(url, risk);
-
-        const copyButton = document.createElement("button");
-        copyButton.className = "ambient-link-copy";
-        copyButton.type = "button";
-        copyButton.textContent = "Copy";
-        copyButton.title = "Copy link";
-        copyButton.addEventListener("click", (event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            this.copyText(url.href, "Link copied.");
-        });
-
-        tools.append(domainBadge, copyButton);
-        anchor.insertAdjacentElement("afterend", tools);
-    }
-
-    parseHttpUrl(href) {
-        try {
-            const url = new URL(href);
-            if (url.protocol !== "http:" && url.protocol !== "https:") return null;
-            return url;
-        } catch {
-            return null;
-        }
-    }
-
-    getDisplayDomain(url) {
-        return url.hostname.replace(/^www\./i, "").toLowerCase();
-    }
-
-    getLinkRisk(url) {
-        const domain = this.getDisplayDomain(url);
-        if (SUSPICIOUS_DOMAINS.has(domain)) return "danger";
-        if (domain.startsWith("xn--")) return "warn";
-        if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(domain)) return "warn";
-        if (domain.split(".").length > 3) return "warn";
-        return "safe";
-    }
-
-    getLinkRiskTitle(url, risk) {
-        if (risk === "danger") return `Risky shortener/logger style domain: ${url.href}`;
-        if (risk === "warn") return `Check this domain before opening: ${url.href}`;
-        return url.href;
-    }
-
-    enhanceCodeBlocks(root) {
-        const blocks = [];
-        if (root.matches?.("pre")) blocks.push(root);
-        root.querySelectorAll?.("pre").forEach(block => blocks.push(block));
-
-        for (const block of blocks) {
-            if (!block.closest(LINK_SCOPE_SELECTORS)) continue;
-            if (block.classList.contains("ambient-enhanced-code")) continue;
-
-            const text = this.extractCodeText(block);
-            if (!text) continue;
-
-            block.classList.add("ambient-enhanced-code");
-            const button = document.createElement("button");
-            button.className = "ambient-code-copy";
-            button.type = "button";
-            button.textContent = "Copy";
-            button.title = "Copy code block";
-            button.addEventListener("click", (event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                this.copyText(this.extractCodeText(block), "Code copied.");
-            });
-            block.appendChild(button);
-        }
-    }
-
-    extractCodeText(block) {
-        const code = block.querySelector("code");
-        const source = code || block.cloneNode(true);
-        source.querySelector?.(".ambient-code-copy")?.remove();
-        return this.normalizeCopiedText(source.innerText || source.textContent || "");
     }
 
     addAmbientGlow(popout) {
@@ -857,23 +942,15 @@ module.exports = class AmbientProfilePopouts {
             const ctx = canvas.getContext("2d", {willReadFrequently: true});
             ctx.drawImage(img, 0, 0, size, size);
             const pixels = ctx.getImageData(0, 0, size, size).data;
-            let r = 0;
-            let g = 0;
-            let b = 0;
-            let count = 0;
+            let r = 0, g = 0, b = 0, count = 0;
 
             for (let i = 0; i < pixels.length; i += 4) {
                 const alpha = pixels[i + 3];
                 if (alpha < 90) continue;
-                const pr = pixels[i];
-                const pg = pixels[i + 1];
-                const pb = pixels[i + 2];
+                const pr = pixels[i], pg = pixels[i + 1], pb = pixels[i + 2];
                 const brightness = (pr + pg + pb) / 3;
                 if (brightness < 18 || brightness > 242) continue;
-                r += pr;
-                g += pg;
-                b += pb;
-                count++;
+                r += pr; g += pg; b += pb; count++;
             }
 
             if (!count) return null;
@@ -884,13 +961,12 @@ module.exports = class AmbientProfilePopouts {
     }
 
     setAmbientColors(popout, rgb) {
-        const base = this.boostColor(rgb);
+        const base  = this.boostColor(rgb);
         const bright = this.mixColor(base, [255, 255, 255], 0.28);
-        const soft = this.mixColor(base, [255, 255, 255], 0.58);
-
-        popout.style.setProperty("--ambient-base", base.join(", "));
+        const soft   = this.mixColor(base, [255, 255, 255], 0.58);
+        popout.style.setProperty("--ambient-base",   base.join(", "));
         popout.style.setProperty("--ambient-bright", bright.join(", "));
-        popout.style.setProperty("--ambient-soft", soft.join(", "));
+        popout.style.setProperty("--ambient-soft",   soft.join(", "));
     }
 
     boostColor(rgb) {
@@ -902,6 +978,8 @@ module.exports = class AmbientProfilePopouts {
     mixColor(a, b, amount) {
         return a.map((value, index) => Math.round(value + (b[index] - value) * amount));
     }
+
+    // ─── Profile tools ───────────────────────────────────────────────────────────
 
     ensureProfileTools(popout) {
         if (popout.querySelector(".ambient-profile-tools")) {
@@ -937,7 +1015,7 @@ module.exports = class AmbientProfilePopouts {
         });
 
         const note = this.createToolButton("Note", "Private local note", () => this.toggleNotePanel(popout));
-        const tag = this.createToolButton("Tag", "Private local tags", () => this.toggleNotePanel(popout));
+        const tag  = this.createToolButton("Tag",  "Private local tags",  () => this.toggleNotePanel(popout));
 
         tools.append(copyId, copyName, copyLink, spotify, note, tag);
         popout.appendChild(tools);
@@ -945,15 +1023,15 @@ module.exports = class AmbientProfilePopouts {
     }
 
     updateProfileTools(popout) {
-        const data = this.getProfileData(popout);
+        const data  = this.getProfileData(popout);
         const tools = popout.querySelector(".ambient-profile-tools");
         if (!tools) return;
 
         const [copyId, copyName, copyLink, spotify] = tools.querySelectorAll(".ambient-profile-tool");
-        if (copyId) copyId.disabled = !data.id;
+        if (copyId)   copyId.disabled   = !data.id;
         if (copyName) copyName.disabled = !data.username;
         if (copyLink) copyLink.disabled = !data.id;
-        if (spotify) spotify.disabled = !this.getSpotifyLink(popout);
+        if (spotify)  spotify.disabled  = !this.getSpotifyLink(popout);
     }
 
     createToolButton(label, title, onClick) {
@@ -969,6 +1047,8 @@ module.exports = class AmbientProfilePopouts {
         });
         return button;
     }
+
+    // ─── Note panel ──────────────────────────────────────────────────────────────
 
     toggleNotePanel(popout) {
         let panel = popout.querySelector(".ambient-profile-note");
@@ -1035,7 +1115,7 @@ module.exports = class AmbientProfilePopouts {
         tagInput.addEventListener("input", () => {
             const key = this.getNoteKey(popout);
             if (!key) return;
-            const tags = this.getTags();
+            const tags   = this.getTags();
             const values = this.parseTags(tagInput.value);
             if (values.length) tags[key] = values;
             else delete tags[key];
@@ -1048,7 +1128,7 @@ module.exports = class AmbientProfilePopouts {
             const key = this.getNoteKey(popout);
             if (!key) return;
             const notes = this.getNotes();
-            const tags = this.getTags();
+            const tags  = this.getTags();
             delete notes[key];
             delete tags[key];
             this.saveNotes(notes);
@@ -1063,8 +1143,10 @@ module.exports = class AmbientProfilePopouts {
         return panel;
     }
 
+    // ─── Profile data ────────────────────────────────────────────────────────────
+
     getProfileData(popout) {
-        const id = this.extractUserId(popout);
+        const id       = this.extractUserId(popout);
         const username = this.extractUsername(popout);
         return {id, username};
     }
@@ -1080,7 +1162,6 @@ module.exports = class AmbientProfilePopouts {
             const match = String(value).match(/(?:avatars|banners)\/(\d{16,22})\//);
             if (match) return match[1];
         }
-
         return "";
     }
 
@@ -1095,12 +1176,11 @@ module.exports = class AmbientProfilePopouts {
 
         for (const selector of selectors) {
             const element = popout.querySelector(selector);
-            const text = element?.textContent?.trim();
+            const text    = element?.textContent?.trim();
             if (text && text.length <= 80) return text;
-            const label = element?.getAttribute?.("aria-label")?.trim();
+            const label   = element?.getAttribute?.("aria-label")?.trim();
             if (label && label.length <= 80) return label;
         }
-
         return "";
     }
 
@@ -1111,34 +1191,20 @@ module.exports = class AmbientProfilePopouts {
 
     getNoteKey(popout) {
         const data = this.getProfileData(popout);
-        if (data.id) return `id:${data.id}`;
+        if (data.id)       return `id:${data.id}`;
         if (data.username) return `name:${data.username.toLowerCase()}`;
         return "";
     }
 
-    getNotes() {
-        return BdApi.Data.load(PLUGIN_NAME, "profileNotes") || {};
-    }
-
-    saveNotes(notes) {
-        BdApi.Data.save(PLUGIN_NAME, "profileNotes", notes);
-    }
-
-    getTags() {
-        return BdApi.Data.load(PLUGIN_NAME, "profileTags") || {};
-    }
-
-    saveTags(tags) {
-        BdApi.Data.save(PLUGIN_NAME, "profileTags", tags);
-    }
+    getNotes()       { return BdApi.Data.load(PLUGIN_NAME, "profileNotes") || {}; }
+    saveNotes(notes) { BdApi.Data.save(PLUGIN_NAME, "profileNotes", notes); }
+    getTags()        { return BdApi.Data.load(PLUGIN_NAME, "profileTags")  || {}; }
+    saveTags(tags)   { BdApi.Data.save(PLUGIN_NAME, "profileTags",  tags);  }
 
     parseTags(value) {
-        return Array.from(new Set(String(value)
-            .split(",")
-            .map(tag => tag.trim())
-            .filter(Boolean)
-            .map(tag => tag.slice(0, 20))))
-            .slice(0, 6);
+        return Array.from(new Set(
+            String(value).split(",").map(tag => tag.trim()).filter(Boolean).map(tag => tag.slice(0, 20))
+        )).slice(0, 6);
     }
 
     renderProfileTags(popout) {
@@ -1146,7 +1212,7 @@ module.exports = class AmbientProfilePopouts {
         const panel = popout.querySelector(".ambient-profile-note");
         if (panel && !panel.hidden) return;
 
-        const key = this.getNoteKey(popout);
+        const key  = this.getNoteKey(popout);
         const tags = key ? this.getTags()[key] || [] : [];
         if (!tags.length) return;
 
@@ -1164,6 +1230,8 @@ module.exports = class AmbientProfilePopouts {
         popout.appendChild(row);
     }
 
+    // ─── Spotify ─────────────────────────────────────────────────────────────────
+
     polishSpotifyCards(popout) {
         const spotifyImages = popout.querySelectorAll('img[src*="i.scdn.co"], img[src*="spotify"]');
         spotifyImages.forEach(img => {
@@ -1173,7 +1241,7 @@ module.exports = class AmbientProfilePopouts {
     }
 
     findSpotifyCard(img, popout) {
-        let best = img.parentElement;
+        let best    = img.parentElement;
         let current = img.parentElement;
 
         for (let i = 0; i < 8 && current && current !== popout; i++) {
@@ -1185,8 +1253,135 @@ module.exports = class AmbientProfilePopouts {
             current = current.parentElement;
         }
 
-        return best && best !== img.parentElement ? best : img.closest('[class*="activity_"], [class*="card_"], [class*="section_"]') || best;
+        return best && best !== img.parentElement
+            ? best
+            : img.closest('[class*="activity_"], [class*="card_"], [class*="section_"]') || best;
     }
+
+    // ─── Message enhancements ────────────────────────────────────────────────────
+
+    scanExistingMessageEnhancements() {
+        this.enhanceMessageNode(document);
+    }
+
+    enhanceMessageNode(root) {
+        this.enhanceLinks(root);
+        this.enhanceCodeBlocks(root);
+    }
+
+    enhanceLinks(root) {
+        const anchors = [];
+        if (root.matches?.("a[href]")) anchors.push(root);
+        root.querySelectorAll?.("a[href]").forEach(anchor => anchors.push(anchor));
+        for (const anchor of anchors) this.enhanceLink(anchor);
+    }
+
+    enhanceLink(anchor) {
+        if (anchor.classList.contains("ambient-enhanced-link")) return;
+        if (!anchor.closest(LINK_SCOPE_SELECTORS)) return;
+        if (anchor.closest(".ambient-link-tools, .ambient-profile-tools, .ambient-profile-note")) return;
+        if (anchor.querySelector("img, video, canvas, svg")) return;
+
+        const url = this.parseHttpUrl(anchor.href);
+        if (!url) return;
+
+        const domain = this.getDisplayDomain(url);
+        if (!domain || domain === "discord.com") return;
+        const risk = this.getLinkRisk(url);
+
+        anchor.classList.add("ambient-enhanced-link");
+        anchor.dataset.ambientDomain = domain;
+        anchor.dataset.ambientRisk   = risk;
+
+        const tools = document.createElement("span");
+        tools.className     = "ambient-link-tools";
+        tools.contentEditable = "false";
+
+        const domainBadge = document.createElement("span");
+        domainBadge.className          = "ambient-link-domain";
+        domainBadge.dataset.ambientRisk = risk;
+        domainBadge.textContent         = risk === "safe" ? domain : `! ${domain}`;
+        domainBadge.title               = this.getLinkRiskTitle(url, risk);
+
+        const copyButton = document.createElement("button");
+        copyButton.className  = "ambient-link-copy";
+        copyButton.type       = "button";
+        copyButton.textContent = "Copy";
+        copyButton.title      = "Copy link";
+        copyButton.addEventListener("click", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            this.copyText(url.href, "Link copied.");
+        });
+
+        tools.append(domainBadge, copyButton);
+        anchor.insertAdjacentElement("afterend", tools);
+    }
+
+    parseHttpUrl(href) {
+        try {
+            const url = new URL(href);
+            if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+            return url;
+        } catch {
+            return null;
+        }
+    }
+
+    getDisplayDomain(url) {
+        return url.hostname.replace(/^www\./i, "").toLowerCase();
+    }
+
+    getLinkRisk(url) {
+        const domain = this.getDisplayDomain(url);
+        if (SUSPICIOUS_DOMAINS.has(domain)) return "danger";
+        if (domain.startsWith("xn--")) return "warn";
+        if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(domain)) return "warn";
+        if (domain.split(".").length > 3) return "warn";
+        return "safe";
+    }
+
+    getLinkRiskTitle(url, risk) {
+        if (risk === "danger") return `Risky shortener/logger style domain: ${url.href}`;
+        if (risk === "warn")   return `Check this domain before opening: ${url.href}`;
+        return url.href;
+    }
+
+    enhanceCodeBlocks(root) {
+        const blocks = [];
+        if (root.matches?.("pre")) blocks.push(root);
+        root.querySelectorAll?.("pre").forEach(block => blocks.push(block));
+
+        for (const block of blocks) {
+            if (!block.closest(LINK_SCOPE_SELECTORS)) continue;
+            if (block.classList.contains("ambient-enhanced-code")) continue;
+
+            const text = this.extractCodeText(block);
+            if (!text) continue;
+
+            block.classList.add("ambient-enhanced-code");
+            const button = document.createElement("button");
+            button.className   = "ambient-code-copy";
+            button.type        = "button";
+            button.textContent = "Copy";
+            button.title       = "Copy code block";
+            button.addEventListener("click", (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                this.copyText(this.extractCodeText(block), "Code copied.");
+            });
+            block.appendChild(button);
+        }
+    }
+
+    extractCodeText(block) {
+        const code   = block.querySelector("code");
+        const source = code || block.cloneNode(true);
+        source.querySelector?.(".ambient-code-copy")?.remove();
+        return this.normalizeCopiedText(source.innerText || source.textContent || "");
+    }
+
+    // ─── Shift-click copy ────────────────────────────────────────────────────────
 
     handleShiftClickCopy(event) {
         if (!event.shiftKey || event.button !== 0) return;
@@ -1205,15 +1400,9 @@ module.exports = class AmbientProfilePopouts {
 
     isInteractiveTarget(target) {
         return Boolean(target?.closest?.([
-            "a",
-            "button",
-            "input",
-            "textarea",
-            "select",
-            "[role='button']",
-            "[contenteditable='true']",
-            ".ambient-profile-tools",
-            ".ambient-profile-note"
+            "a", "button", "input", "textarea", "select",
+            "[role='button']", "[contenteditable='true']",
+            ".ambient-profile-tools", ".ambient-profile-note"
         ].join(",")));
     }
 
@@ -1230,11 +1419,10 @@ module.exports = class AmbientProfilePopouts {
         return fallback || "";
     }
 
+    // ─── Utilities ───────────────────────────────────────────────────────────────
+
     normalizeCopiedText(text) {
-        return text
-            .replace(/\u200B/g, "")
-            .replace(/\n{3,}/g, "\n\n")
-            .trim();
+        return text.replace(/\u200B/g, "").replace(/\n{3,}/g, "\n\n").trim();
     }
 
     async copyText(text, message) {
@@ -1243,8 +1431,7 @@ module.exports = class AmbientProfilePopouts {
         } catch {
             const input = document.createElement("textarea");
             input.value = text;
-            input.style.position = "fixed";
-            input.style.opacity = "0";
+            input.style.cssText = "position:fixed;opacity:0;";
             document.body.appendChild(input);
             input.select();
             document.execCommand("copy");
