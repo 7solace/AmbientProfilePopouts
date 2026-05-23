@@ -1,7 +1,7 @@
 /**
  * @name AmbientProfilePopouts
  * @author s7lace
- * @version 1.2.2
+ * @version 1.3.0
  * @description Adds adaptive ambient glow effects and useful profile tools to Discord profile popouts.
  * @updateUrl https://raw.githubusercontent.com/7solace/AmbientProfilePopouts/main/AmbientProfilePopouts.plugin.js
  * @downloadUrl https://raw.githubusercontent.com/7solace/AmbientProfilePopouts/main/AmbientProfilePopouts.plugin.js
@@ -31,6 +31,19 @@ const LINK_SCOPE_SELECTORS = [
     '[class*="message_"]',
     '[class*="embed_"]'
 ].join(",");
+const SUSPICIOUS_DOMAINS = new Set([
+    "bit.ly",
+    "tinyurl.com",
+    "t.co",
+    "goo.gl",
+    "is.gd",
+    "cutt.ly",
+    "rb.gy",
+    "shorturl.at",
+    "grabify.link",
+    "iplogger.org",
+    "2no.co"
+]);
 
 module.exports = class AmbientProfilePopouts {
     start() {
@@ -42,7 +55,7 @@ module.exports = class AmbientProfilePopouts {
             this.updateInterval = setInterval(() => this.checkForUpdates(true), UPDATE_CHECK_INTERVAL);
             this.injectCSS();
             this.scanExistingProfiles();
-            this.scanExistingLinks();
+            this.scanExistingMessageEnhancements();
 
             this.observer = new MutationObserver((mutations) => {
                 for (const mutation of mutations) {
@@ -55,7 +68,7 @@ module.exports = class AmbientProfilePopouts {
                     for (const node of mutation.addedNodes) {
                         if (node.nodeType !== Node.ELEMENT_NODE) continue;
                         for (const profile of this.findProfileRoots(node)) this.addAmbientGlow(profile);
-                        this.enhanceLinks(node);
+                        this.enhanceMessageNode(node);
                     }
                 }
             });
@@ -81,10 +94,17 @@ module.exports = class AmbientProfilePopouts {
         document.querySelectorAll(".ambient-profile-tools").forEach(el => el.remove());
         document.querySelectorAll(".ambient-profile-note").forEach(el => el.remove());
         document.querySelectorAll(".ambient-link-tools").forEach(el => el.remove());
+        document.querySelectorAll(".ambient-code-copy").forEach(el => el.remove());
+        document.querySelectorAll(".ambient-media-tools").forEach(el => el.remove());
+        document.querySelectorAll(".ambient-profile-tags").forEach(el => el.remove());
         document.querySelectorAll(".ambient-enhanced-link").forEach(el => {
             el.classList.remove("ambient-enhanced-link");
             el.removeAttribute("data-ambient-domain");
+            el.removeAttribute("data-ambient-risk");
         });
+        document.querySelectorAll(".ambient-enhanced-code").forEach(el => el.classList.remove("ambient-enhanced-code"));
+        document.querySelectorAll(".ambient-media-frame").forEach(el => el.classList.remove("ambient-media-frame"));
+        document.querySelectorAll(".ambient-spotify-card").forEach(el => el.classList.remove("ambient-spotify-card"));
         document.querySelectorAll(".ambient-profile-root").forEach(el => el.classList.remove("ambient-profile-root"));
     }
 
@@ -368,6 +388,53 @@ module.exports = class AmbientProfilePopouts {
             font-size: 11px;
         }
 
+        .ambient-profile-tag-input {
+            box-sizing: border-box;
+            width: 100%;
+            height: 30px;
+            margin-top: 8px;
+            border: 0;
+            outline: none;
+            border-radius: 8px;
+            padding: 0 9px;
+            color: var(--text-normal, #dbdee1);
+            background: rgba(255, 255, 255, 0.075);
+            font: 700 11px/30px var(--font-primary, sans-serif);
+        }
+
+        .ambient-profile-tags {
+            position: absolute;
+            right: 44px;
+            top: 52px;
+            z-index: 5;
+            display: flex;
+            max-width: min(300px, calc(100% - 70px));
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            gap: 5px;
+            pointer-events: none;
+        }
+
+        .ambient-profile-note:not([hidden]) ~ .ambient-profile-tags {
+            display: none;
+        }
+
+        .ambient-profile-tag {
+            max-width: 116px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            border: 1px solid rgba(var(--ambient-soft), 0.20);
+            border-radius: 999px;
+            padding: 3px 7px;
+            color: #fff;
+            background: rgba(var(--ambient-base), 0.34);
+            box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
+            backdrop-filter: blur(10px);
+            font-size: 10px;
+            font-weight: 800;
+            line-height: 1;
+        }
+
         [class*="menu_"],
         [class*="submenu_"],
         [class*="tooltip_"],
@@ -432,6 +499,120 @@ module.exports = class AmbientProfilePopouts {
             background: rgba(114, 137, 218, 0.22);
         }
 
+        .ambient-enhanced-link[data-ambient-risk="warn"] {
+            color: #ffd166 !important;
+        }
+
+        .ambient-enhanced-link[data-ambient-risk="danger"] {
+            color: #ff6b6b !important;
+        }
+
+        .ambient-link-domain[data-ambient-risk="warn"] {
+            color: #ffd166;
+            border-color: rgba(255, 209, 102, 0.32);
+            background: rgba(255, 209, 102, 0.12);
+        }
+
+        .ambient-link-domain[data-ambient-risk="danger"] {
+            color: #ffb3b3;
+            border-color: rgba(255, 107, 107, 0.34);
+            background: rgba(255, 107, 107, 0.14);
+        }
+
+        .ambient-enhanced-code {
+            position: relative !important;
+        }
+
+        .ambient-code-copy {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            z-index: 3;
+            height: 22px;
+            min-width: 38px;
+            border: 1px solid rgba(255, 255, 255, 0.10);
+            border-radius: 6px;
+            color: var(--text-muted, #949ba4);
+            background: rgba(12, 12, 16, 0.62);
+            backdrop-filter: blur(10px);
+            cursor: pointer;
+            font-size: 10px;
+            font-weight: 800;
+            opacity: 0;
+            transition: opacity 140ms ease, background 140ms ease, color 140ms ease;
+        }
+
+        .ambient-enhanced-code:hover .ambient-code-copy,
+        .ambient-code-copy:focus-visible {
+            opacity: 1;
+        }
+
+        .ambient-code-copy:hover {
+            color: #fff;
+            background: rgba(114, 137, 218, 0.24);
+        }
+
+        .ambient-media-frame {
+            position: relative !important;
+            display: inline-block;
+        }
+
+        .ambient-media-tools {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            z-index: 4;
+            display: inline-flex;
+            gap: 3px;
+            padding: 3px;
+            border-radius: 8px;
+            background: rgba(8, 8, 12, 0.48);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.26);
+            backdrop-filter: blur(12px) saturate(140%);
+            opacity: 0;
+            pointer-events: auto;
+            transition: opacity 140ms ease;
+        }
+
+        .ambient-media-frame:hover .ambient-media-tools,
+        .ambient-media-tools:focus-within {
+            opacity: 1;
+        }
+
+        .ambient-media-tool {
+            width: 20px;
+            height: 20px;
+            border: 0;
+            border-radius: 6px;
+            color: #fff;
+            background: rgba(255, 255, 255, 0.10);
+            cursor: pointer;
+            font-size: 10px;
+            font-weight: 900;
+            line-height: 20px;
+            padding: 0;
+        }
+
+        .ambient-media-tool:hover {
+            background: rgba(114, 137, 218, 0.30);
+        }
+
+        .ambient-spotify-card {
+            position: relative !important;
+            overflow: hidden !important;
+            border: 1px solid rgba(30, 215, 96, 0.18) !important;
+            box-shadow: 0 0 24px rgba(30, 215, 96, 0.08) !important;
+        }
+
+        .ambient-spotify-card::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            background: linear-gradient(120deg, rgba(30, 215, 96, 0.10), transparent 42%);
+            opacity: 0.88;
+        }
+
         @keyframes ambientGlowMove {
             0% { transform: translate3d(-2%, -1%, 0) rotate(0deg) scale(1); background-position: 0% 50%; }
             50% { transform: translate3d(2%, 1%, 0) rotate(8deg) scale(1.04); background-position: 100% 50%; }
@@ -467,8 +648,14 @@ module.exports = class AmbientProfilePopouts {
         return roots;
     }
 
-    scanExistingLinks() {
-        this.enhanceLinks(document);
+    scanExistingMessageEnhancements() {
+        this.enhanceMessageNode(document);
+    }
+
+    enhanceMessageNode(root) {
+        this.enhanceLinks(root);
+        this.enhanceCodeBlocks(root);
+        this.enhanceMedia(root);
     }
 
     enhanceLinks(root) {
@@ -490,9 +677,11 @@ module.exports = class AmbientProfilePopouts {
 
         const domain = this.getDisplayDomain(url);
         if (!domain || domain === "discord.com") return;
+        const risk = this.getLinkRisk(url);
 
         anchor.classList.add("ambient-enhanced-link");
         anchor.dataset.ambientDomain = domain;
+        anchor.dataset.ambientRisk = risk;
 
         const tools = document.createElement("span");
         tools.className = "ambient-link-tools";
@@ -500,8 +689,9 @@ module.exports = class AmbientProfilePopouts {
 
         const domainBadge = document.createElement("span");
         domainBadge.className = "ambient-link-domain";
-        domainBadge.textContent = domain;
-        domainBadge.title = url.hostname;
+        domainBadge.dataset.ambientRisk = risk;
+        domainBadge.textContent = risk === "safe" ? domain : `! ${domain}`;
+        domainBadge.title = this.getLinkRiskTitle(url, risk);
 
         const copyButton = document.createElement("button");
         copyButton.className = "ambient-link-copy";
@@ -532,6 +722,123 @@ module.exports = class AmbientProfilePopouts {
         return url.hostname.replace(/^www\./i, "").toLowerCase();
     }
 
+    getLinkRisk(url) {
+        const domain = this.getDisplayDomain(url);
+        if (SUSPICIOUS_DOMAINS.has(domain)) return "danger";
+        if (domain.startsWith("xn--")) return "warn";
+        if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(domain)) return "warn";
+        if (domain.split(".").length > 3) return "warn";
+        return "safe";
+    }
+
+    getLinkRiskTitle(url, risk) {
+        if (risk === "danger") return `Risky shortener/logger style domain: ${url.href}`;
+        if (risk === "warn") return `Check this domain before opening: ${url.href}`;
+        return url.href;
+    }
+
+    enhanceCodeBlocks(root) {
+        const blocks = [];
+        if (root.matches?.("pre")) blocks.push(root);
+        root.querySelectorAll?.("pre").forEach(block => blocks.push(block));
+
+        for (const block of blocks) {
+            if (!block.closest(LINK_SCOPE_SELECTORS)) continue;
+            if (block.classList.contains("ambient-enhanced-code")) continue;
+
+            const text = this.extractCodeText(block);
+            if (!text) continue;
+
+            block.classList.add("ambient-enhanced-code");
+            const button = document.createElement("button");
+            button.className = "ambient-code-copy";
+            button.type = "button";
+            button.textContent = "Copy";
+            button.title = "Copy code block";
+            button.addEventListener("click", (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                this.copyText(this.extractCodeText(block), "Code copied.");
+            });
+            block.appendChild(button);
+        }
+    }
+
+    extractCodeText(block) {
+        const code = block.querySelector("code");
+        const source = code || block.cloneNode(true);
+        source.querySelector?.(".ambient-code-copy")?.remove();
+        return this.normalizeCopiedText(source.innerText || source.textContent || "");
+    }
+
+    enhanceMedia(root) {
+        const images = [];
+        if (root.matches?.("img[src]")) images.push(root);
+        root.querySelectorAll?.("img[src]").forEach(img => images.push(img));
+
+        for (const img of images) this.enhanceImage(img);
+    }
+
+    enhanceImage(img) {
+        if (!img.closest(LINK_SCOPE_SELECTORS)) return;
+        if (img.closest(".ambient-media-frame, .ambient-profile-root, .ambient-link-tools")) return;
+        if (!this.isMessageMediaImage(img)) return;
+
+        const frame = img.closest("a[href]") || img.parentElement;
+        if (!frame || frame.querySelector(":scope > .ambient-media-tools")) return;
+
+        frame.classList.add("ambient-media-frame");
+        const imageUrl = this.getBestMediaUrl(img, frame);
+        const tools = document.createElement("span");
+        tools.className = "ambient-media-tools";
+
+        const open = this.createTinyMediaButton("O", "Open image", () => window.open(imageUrl, "_blank"));
+        const copy = this.createTinyMediaButton("C", "Copy image URL", () => this.copyText(imageUrl, "Image URL copied."));
+        const download = this.createTinyMediaButton("D", "Download image", () => this.downloadUrl(imageUrl));
+
+        tools.append(open, copy, download);
+        frame.appendChild(tools);
+    }
+
+    isMessageMediaImage(img) {
+        const src = img.src || "";
+        if (!src.includes("cdn.discordapp.com") && !src.includes("media.discordapp.net")) return false;
+        if (src.includes("/avatars/") || src.includes("/banners/") || src.includes("/icons/") || src.includes("/emojis/")) return false;
+        const width = img.naturalWidth || img.width || 0;
+        const height = img.naturalHeight || img.height || 0;
+        return width >= 80 || height >= 80;
+    }
+
+    getBestMediaUrl(img, frame) {
+        const href = frame?.tagName === "A" ? frame.href : "";
+        const src = href || img.src;
+        return src.replace(/\?width=\d+&height=\d+/, "").replace(/[?&]format=webp/, "");
+    }
+
+    createTinyMediaButton(label, title, onClick) {
+        const button = document.createElement("button");
+        button.className = "ambient-media-tool";
+        button.type = "button";
+        button.textContent = label;
+        button.title = title;
+        button.addEventListener("click", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            onClick();
+        });
+        return button;
+    }
+
+    downloadUrl(url) {
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "";
+        link.rel = "noreferrer";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+    }
+
     addAmbientGlow(popout) {
         if (!popout) return;
 
@@ -539,6 +846,8 @@ module.exports = class AmbientProfilePopouts {
             popout.classList.add("ambient-profile-root");
             this.queueColorRefresh(popout);
             this.ensureProfileTools(popout);
+            this.renderProfileTags(popout);
+            this.polishSpotifyCards(popout);
             return;
         }
 
@@ -565,6 +874,8 @@ module.exports = class AmbientProfilePopouts {
             popout.insertBefore(containerDiv, popout.firstChild);
             this.updateProfileColors(popout);
             this.ensureProfileTools(popout);
+            this.renderProfileTags(popout);
+            this.polishSpotifyCards(popout);
         }, 180);
     }
 
@@ -714,8 +1025,9 @@ module.exports = class AmbientProfilePopouts {
         });
 
         const note = this.createToolButton("Note", "Private local note", () => this.toggleNotePanel(popout));
+        const tag = this.createToolButton("Tag", "Private local tags", () => this.toggleNotePanel(popout));
 
-        tools.append(copyId, copyName, copyLink, spotify, note);
+        tools.append(copyId, copyName, copyLink, spotify, note, tag);
         popout.appendChild(tools);
         this.updateProfileTools(popout);
     }
@@ -750,6 +1062,7 @@ module.exports = class AmbientProfilePopouts {
         let panel = popout.querySelector(".ambient-profile-note");
         if (!panel) panel = this.createNotePanel(popout);
         panel.hidden = !panel.hidden;
+        this.renderProfileTags(popout);
         if (!panel.hidden) panel.querySelector("textarea")?.focus();
     }
 
@@ -761,6 +1074,12 @@ module.exports = class AmbientProfilePopouts {
         const textarea = document.createElement("textarea");
         textarea.spellcheck = false;
         textarea.placeholder = "Private note for this profile...";
+
+        const tagInput = document.createElement("input");
+        tagInput.className = "ambient-profile-tag-input";
+        tagInput.type = "text";
+        tagInput.spellcheck = false;
+        tagInput.placeholder = "tags: friend, staff, trade";
 
         const footer = document.createElement("div");
         footer.className = "ambient-profile-note-footer";
@@ -774,13 +1093,15 @@ module.exports = class AmbientProfilePopouts {
         clear.textContent = "Clear";
 
         footer.append(status, clear);
-        panel.append(textarea, footer);
+        panel.append(textarea, tagInput, footer);
         popout.appendChild(panel);
 
         const refresh = () => {
             const key = this.getNoteKey(popout);
             textarea.value = key ? this.getNotes()[key] || "" : "";
+            tagInput.value = key ? (this.getTags()[key] || []).join(", ") : "";
             textarea.disabled = !key;
+            tagInput.disabled = !key;
             status.textContent = key ? "Saved locally" : "Profile key not found";
         };
 
@@ -795,13 +1116,30 @@ module.exports = class AmbientProfilePopouts {
             status.textContent = "Saved";
         });
 
+        tagInput.addEventListener("input", () => {
+            const key = this.getNoteKey(popout);
+            if (!key) return;
+            const tags = this.getTags();
+            const values = this.parseTags(tagInput.value);
+            if (values.length) tags[key] = values;
+            else delete tags[key];
+            this.saveTags(tags);
+            this.renderProfileTags(popout);
+            status.textContent = "Saved";
+        });
+
         clear.addEventListener("click", () => {
             const key = this.getNoteKey(popout);
             if (!key) return;
             const notes = this.getNotes();
+            const tags = this.getTags();
             delete notes[key];
+            delete tags[key];
             this.saveNotes(notes);
+            this.saveTags(tags);
             textarea.value = "";
+            tagInput.value = "";
+            this.renderProfileTags(popout);
             status.textContent = "Cleared";
         });
 
@@ -868,6 +1206,58 @@ module.exports = class AmbientProfilePopouts {
 
     saveNotes(notes) {
         BdApi.Data.save(PLUGIN_NAME, "profileNotes", notes);
+    }
+
+    getTags() {
+        return BdApi.Data.load(PLUGIN_NAME, "profileTags") || {};
+    }
+
+    saveTags(tags) {
+        BdApi.Data.save(PLUGIN_NAME, "profileTags", tags);
+    }
+
+    parseTags(value) {
+        return Array.from(new Set(String(value)
+            .split(",")
+            .map(tag => tag.trim())
+            .filter(Boolean)
+            .map(tag => tag.slice(0, 20))))
+            .slice(0, 6);
+    }
+
+    renderProfileTags(popout) {
+        popout.querySelector(".ambient-profile-tags")?.remove();
+        const panel = popout.querySelector(".ambient-profile-note");
+        if (panel && !panel.hidden) return;
+
+        const key = this.getNoteKey(popout);
+        const tags = key ? this.getTags()[key] || [] : [];
+        if (!tags.length) return;
+
+        const row = document.createElement("div");
+        row.className = "ambient-profile-tags";
+
+        for (const tag of tags) {
+            const chip = document.createElement("span");
+            chip.className = "ambient-profile-tag";
+            chip.textContent = tag;
+            chip.title = tag;
+            row.appendChild(chip);
+        }
+
+        popout.appendChild(row);
+    }
+
+    polishSpotifyCards(popout) {
+        const spotifyImages = popout.querySelectorAll('img[src*="i.scdn.co"], img[src*="spotify"]');
+        spotifyImages.forEach(img => {
+            let card = img.parentElement;
+            for (let i = 0; i < 4 && card; i++) {
+                if ((card.textContent || "").toLowerCase().includes("spotify")) break;
+                card = card.parentElement;
+            }
+            if (card && card !== popout) card.classList.add("ambient-spotify-card");
+        });
     }
 
     handleShiftClickCopy(event) {
