@@ -1,7 +1,7 @@
 /**
  * @name AmbientProfilePopouts
  * @author s7lace
- * @version 1.3.0
+ * @version 1.3.2
  * @description Adds adaptive ambient glow effects and useful profile tools to Discord profile popouts.
  * @updateUrl https://raw.githubusercontent.com/7solace/AmbientProfilePopouts/main/AmbientProfilePopouts.plugin.js
  * @downloadUrl https://raw.githubusercontent.com/7solace/AmbientProfilePopouts/main/AmbientProfilePopouts.plugin.js
@@ -61,7 +61,10 @@ module.exports = class AmbientProfilePopouts {
                 for (const mutation of mutations) {
                     if (mutation.type === "attributes") {
                         const profile = mutation.target.closest?.(PROFILE_SELECTORS);
-                        if (profile) this.queueColorRefresh(profile);
+                        if (profile) {
+                            this.queueColorRefresh(profile);
+                            this.polishSpotifyCards(profile);
+                        }
                         continue;
                     }
 
@@ -95,7 +98,6 @@ module.exports = class AmbientProfilePopouts {
         document.querySelectorAll(".ambient-profile-note").forEach(el => el.remove());
         document.querySelectorAll(".ambient-link-tools").forEach(el => el.remove());
         document.querySelectorAll(".ambient-code-copy").forEach(el => el.remove());
-        document.querySelectorAll(".ambient-media-tools").forEach(el => el.remove());
         document.querySelectorAll(".ambient-profile-tags").forEach(el => el.remove());
         document.querySelectorAll(".ambient-enhanced-link").forEach(el => {
             el.classList.remove("ambient-enhanced-link");
@@ -103,7 +105,6 @@ module.exports = class AmbientProfilePopouts {
             el.removeAttribute("data-ambient-risk");
         });
         document.querySelectorAll(".ambient-enhanced-code").forEach(el => el.classList.remove("ambient-enhanced-code"));
-        document.querySelectorAll(".ambient-media-frame").forEach(el => el.classList.remove("ambient-media-frame"));
         document.querySelectorAll(".ambient-spotify-card").forEach(el => el.classList.remove("ambient-spotify-card"));
         document.querySelectorAll(".ambient-profile-root").forEach(el => el.classList.remove("ambient-profile-root"));
     }
@@ -309,6 +310,12 @@ module.exports = class AmbientProfilePopouts {
             pointer-events: auto;
         }
 
+        .ambient-profile-root[class*="userProfileModalOuter_"] .ambient-profile-tools,
+        .ambient-profile-root[class*="profileOuter_"] .ambient-profile-tools {
+            top: 12px;
+            right: 56px;
+        }
+
         .ambient-profile-tool {
             height: 28px;
             min-width: 34px;
@@ -366,6 +373,16 @@ module.exports = class AmbientProfilePopouts {
             color: var(--text-normal, #dbdee1);
             background: rgba(0, 0, 0, 0.32);
             font: 500 12px/1.4 var(--font-primary, sans-serif);
+        }
+
+        .ambient-profile-note-label {
+            display: block;
+            margin: 8px 0 5px;
+            color: var(--text-muted, #949ba4);
+            font-size: 10px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
         }
 
         .ambient-profile-note-footer {
@@ -552,56 +569,11 @@ module.exports = class AmbientProfilePopouts {
             background: rgba(114, 137, 218, 0.24);
         }
 
-        .ambient-media-frame {
-            position: relative !important;
-            display: inline-block;
-        }
-
-        .ambient-media-tools {
-            position: absolute;
-            top: 5px;
-            right: 5px;
-            z-index: 4;
-            display: inline-flex;
-            gap: 3px;
-            padding: 3px;
-            border-radius: 8px;
-            background: rgba(8, 8, 12, 0.48);
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.26);
-            backdrop-filter: blur(12px) saturate(140%);
-            opacity: 0;
-            pointer-events: auto;
-            transition: opacity 140ms ease;
-        }
-
-        .ambient-media-frame:hover .ambient-media-tools,
-        .ambient-media-tools:focus-within {
-            opacity: 1;
-        }
-
-        .ambient-media-tool {
-            width: 20px;
-            height: 20px;
-            border: 0;
-            border-radius: 6px;
-            color: #fff;
-            background: rgba(255, 255, 255, 0.10);
-            cursor: pointer;
-            font-size: 10px;
-            font-weight: 900;
-            line-height: 20px;
-            padding: 0;
-        }
-
-        .ambient-media-tool:hover {
-            background: rgba(114, 137, 218, 0.30);
-        }
-
         .ambient-spotify-card {
             position: relative !important;
             overflow: hidden !important;
-            border: 1px solid rgba(30, 215, 96, 0.18) !important;
-            box-shadow: 0 0 24px rgba(30, 215, 96, 0.08) !important;
+            border: 1px solid rgba(30, 215, 96, 0.34) !important;
+            box-shadow: 0 0 26px rgba(30, 215, 96, 0.14), inset 0 0 0 1px rgba(255, 255, 255, 0.03) !important;
         }
 
         .ambient-spotify-card::after {
@@ -655,7 +627,6 @@ module.exports = class AmbientProfilePopouts {
     enhanceMessageNode(root) {
         this.enhanceLinks(root);
         this.enhanceCodeBlocks(root);
-        this.enhanceMedia(root);
     }
 
     enhanceLinks(root) {
@@ -769,74 +740,6 @@ module.exports = class AmbientProfilePopouts {
         const source = code || block.cloneNode(true);
         source.querySelector?.(".ambient-code-copy")?.remove();
         return this.normalizeCopiedText(source.innerText || source.textContent || "");
-    }
-
-    enhanceMedia(root) {
-        const images = [];
-        if (root.matches?.("img[src]")) images.push(root);
-        root.querySelectorAll?.("img[src]").forEach(img => images.push(img));
-
-        for (const img of images) this.enhanceImage(img);
-    }
-
-    enhanceImage(img) {
-        if (!img.closest(LINK_SCOPE_SELECTORS)) return;
-        if (img.closest(".ambient-media-frame, .ambient-profile-root, .ambient-link-tools")) return;
-        if (!this.isMessageMediaImage(img)) return;
-
-        const frame = img.closest("a[href]") || img.parentElement;
-        if (!frame || frame.querySelector(":scope > .ambient-media-tools")) return;
-
-        frame.classList.add("ambient-media-frame");
-        const imageUrl = this.getBestMediaUrl(img, frame);
-        const tools = document.createElement("span");
-        tools.className = "ambient-media-tools";
-
-        const open = this.createTinyMediaButton("O", "Open image", () => window.open(imageUrl, "_blank"));
-        const copy = this.createTinyMediaButton("C", "Copy image URL", () => this.copyText(imageUrl, "Image URL copied."));
-        const download = this.createTinyMediaButton("D", "Download image", () => this.downloadUrl(imageUrl));
-
-        tools.append(open, copy, download);
-        frame.appendChild(tools);
-    }
-
-    isMessageMediaImage(img) {
-        const src = img.src || "";
-        if (!src.includes("cdn.discordapp.com") && !src.includes("media.discordapp.net")) return false;
-        if (src.includes("/avatars/") || src.includes("/banners/") || src.includes("/icons/") || src.includes("/emojis/")) return false;
-        const width = img.naturalWidth || img.width || 0;
-        const height = img.naturalHeight || img.height || 0;
-        return width >= 80 || height >= 80;
-    }
-
-    getBestMediaUrl(img, frame) {
-        const href = frame?.tagName === "A" ? frame.href : "";
-        const src = href || img.src;
-        return src.replace(/\?width=\d+&height=\d+/, "").replace(/[?&]format=webp/, "");
-    }
-
-    createTinyMediaButton(label, title, onClick) {
-        const button = document.createElement("button");
-        button.className = "ambient-media-tool";
-        button.type = "button";
-        button.textContent = label;
-        button.title = title;
-        button.addEventListener("click", (event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            onClick();
-        });
-        return button;
-    }
-
-    downloadUrl(url) {
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = "";
-        link.rel = "noreferrer";
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
     }
 
     addAmbientGlow(popout) {
@@ -1081,6 +984,10 @@ module.exports = class AmbientProfilePopouts {
         tagInput.spellcheck = false;
         tagInput.placeholder = "tags: friend, staff, trade";
 
+        const tagLabel = document.createElement("label");
+        tagLabel.className = "ambient-profile-note-label";
+        tagLabel.textContent = "Local tags";
+
         const footer = document.createElement("div");
         footer.className = "ambient-profile-note-footer";
 
@@ -1093,7 +1000,7 @@ module.exports = class AmbientProfilePopouts {
         clear.textContent = "Clear";
 
         footer.append(status, clear);
-        panel.append(textarea, tagInput, footer);
+        panel.append(textarea, tagLabel, tagInput, footer);
         popout.appendChild(panel);
 
         const refresh = () => {
@@ -1251,13 +1158,25 @@ module.exports = class AmbientProfilePopouts {
     polishSpotifyCards(popout) {
         const spotifyImages = popout.querySelectorAll('img[src*="i.scdn.co"], img[src*="spotify"]');
         spotifyImages.forEach(img => {
-            let card = img.parentElement;
-            for (let i = 0; i < 4 && card; i++) {
-                if ((card.textContent || "").toLowerCase().includes("spotify")) break;
-                card = card.parentElement;
-            }
-            if (card && card !== popout) card.classList.add("ambient-spotify-card");
+            const card = this.findSpotifyCard(img, popout);
+            if (card) card.classList.add("ambient-spotify-card");
         });
+    }
+
+    findSpotifyCard(img, popout) {
+        let best = img.parentElement;
+        let current = img.parentElement;
+
+        for (let i = 0; i < 8 && current && current !== popout; i++) {
+            const text = (current.textContent || "").toLowerCase();
+            const rect = current.getBoundingClientRect?.();
+            if (text.includes("spotify") || text.includes("dinliyor") || (rect && rect.width > 220 && rect.height > 70)) {
+                best = current;
+            }
+            current = current.parentElement;
+        }
+
+        return best && best !== img.parentElement ? best : img.closest('[class*="activity_"], [class*="card_"], [class*="section_"]') || best;
     }
 
     handleShiftClickCopy(event) {
