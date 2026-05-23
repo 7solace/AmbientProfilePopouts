@@ -1,7 +1,7 @@
 /**
  * @name AmbientProfilePopouts
  * @author s7lace
- * @version 1.0.6
+ * @version 1.0.7
  * @description bombo
  * @updateUrl https://raw.githubusercontent.com/7solace/ambientprofilepopouts.plugin/main/AmbientProfilePopouts.plugin.js
  * @downloadUrl https://raw.githubusercontent.com/7solace/ambientprofilepopouts.plugin/main/AmbientProfilePopouts.plugin.js
