@@ -1,7 +1,7 @@
 /**
  * @name AmbientProfilePopouts
  * @author s7lace
- * @version 1.2.0
+ * @version 1.2.1
  * @description Adds adaptive ambient glow effects and useful profile tools to Discord profile popouts.
  * @updateUrl https://raw.githubusercontent.com/7solace/AmbientProfilePopouts/main/AmbientProfilePopouts.plugin.js
  * @downloadUrl https://raw.githubusercontent.com/7solace/AmbientProfilePopouts/main/AmbientProfilePopouts.plugin.js
@@ -31,6 +31,8 @@ module.exports = class AmbientProfilePopouts {
     start() {
         try {
             this.colorRefreshTimers = new WeakMap();
+            this.handleShiftClickCopy = this.handleShiftClickCopy.bind(this);
+            document.addEventListener("click", this.handleShiftClickCopy, true);
             this.checkForUpdates();
             this.updateInterval = setInterval(() => this.checkForUpdates(true), UPDATE_CHECK_INTERVAL);
             this.injectCSS();
@@ -65,6 +67,7 @@ module.exports = class AmbientProfilePopouts {
 
     stop() {
         BdApi.DOM.removeStyle("AmbientProfileCSS");
+        document.removeEventListener("click", this.handleShiftClickCopy, true);
         if (this.observer) this.observer.disconnect();
         if (this.updateInterval) clearInterval(this.updateInterval);
         document.querySelectorAll(".ambient-profile-container").forEach(el => el.remove());
@@ -724,6 +727,55 @@ module.exports = class AmbientProfilePopouts {
 
     saveNotes(notes) {
         BdApi.Data.save(PLUGIN_NAME, "profileNotes", notes);
+    }
+
+    handleShiftClickCopy(event) {
+        if (!event.shiftKey || event.button !== 0) return;
+        if (this.isInteractiveTarget(event.target)) return;
+
+        const message = event.target?.closest?.('[id^="chat-messages-"], [class*="message_"]');
+        if (!message || message.closest('[class*="messagesPopout_"], [class*="searchResult_"]')) return;
+
+        const content = this.extractMessageText(message);
+        if (!content) return;
+
+        event.preventDefault();
+        event.stopPropagation();
+        this.copyText(content, "Message copied.");
+    }
+
+    isInteractiveTarget(target) {
+        return Boolean(target?.closest?.([
+            "a",
+            "button",
+            "input",
+            "textarea",
+            "select",
+            "[role='button']",
+            "[contenteditable='true']",
+            ".ambient-profile-tools",
+            ".ambient-profile-note"
+        ].join(",")));
+    }
+
+    extractMessageText(message) {
+        const content = message.querySelector('[class*="messageContent_"]');
+        if (content) return this.normalizeCopiedText(content.innerText || content.textContent || "");
+
+        const fallback = Array.from(message.querySelectorAll('[class*="markup_"], [class*="embedDescription_"], [class*="embedTitle_"]'))
+            .map(element => element.innerText || element.textContent || "")
+            .map(text => this.normalizeCopiedText(text))
+            .filter(Boolean)
+            .join("\n");
+
+        return fallback || "";
+    }
+
+    normalizeCopiedText(text) {
+        return text
+            .replace(/\u200B/g, "")
+            .replace(/\n{3,}/g, "\n\n")
+            .trim();
     }
 
     async copyText(text, message) {
