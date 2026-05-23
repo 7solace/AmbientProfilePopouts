@@ -1,7 +1,7 @@
 /**
  * @name AmbientProfilePopouts
  * @author s7lace
- * @version 1.1.9
+ * @version 1.1.10
  * @description bombo bir profil popout deneyimi için ışık efektleri ekler
  * @updateUrl https://raw.githubusercontent.com/7solace/AmbientProfilePopouts/main/AmbientProfilePopouts.plugin.js
  * @downloadUrl https://raw.githubusercontent.com/7solace/AmbientProfilePopouts/main/AmbientProfilePopouts.plugin.js
@@ -10,11 +10,13 @@
 const PLUGIN_NAME = "AmbientProfilePopouts";
 const PLUGIN_FILE = "AmbientProfilePopouts.plugin.js";
 const UPDATE_URL = "https://raw.githubusercontent.com/7solace/AmbientProfilePopouts/main/AmbientProfilePopouts.plugin.js";
+const UPDATE_CHECK_INTERVAL = 30 * 60 * 1000;
 
 module.exports = class AmbientProfilePopouts {
     start() {
         try {
             this.checkForUpdates();
+            this.updateInterval = setInterval(() => this.checkForUpdates(true), UPDATE_CHECK_INTERVAL);
             this.injectCSS();
             
             this.observer = new MutationObserver((mutations) => {
@@ -42,44 +44,66 @@ module.exports = class AmbientProfilePopouts {
     stop() {
         BdApi.DOM.removeStyle("AmbientProfileCSS");
         if (this.observer) this.observer.disconnect();
+        if (this.updateInterval) clearInterval(this.updateInterval);
         document.querySelectorAll('.ambient-profile-container').forEach(el => el.remove());
     }
 
-    async checkForUpdates() {
-        if (this.updateCheckStarted) return;
-        this.updateCheckStarted = true;
+    async checkForUpdates(silent = false) {
+        if (this.isCheckingForUpdates) return;
+        this.isCheckingForUpdates = true;
 
         try {
-            const response = await BdApi.Net.fetch(UPDATE_URL + "?t=" + Date.now(), {
-                headers: {
-                    "Cache-Control": "no-cache",
-                    "Pragma": "no-cache"
-                },
-                timeout: 10000
-            });
-
-            if (!response || !response.ok) throw new Error("Guncelleme dosyasi alinamadi.");
-
-            const remoteContent = await response.text();
-            const remoteName = this.getMetaValue(remoteContent, "name");
-            const remoteVersion = this.getMetaValue(remoteContent, "version");
-            const currentVersion = BdApi.Plugins.get(PLUGIN_NAME)?.version || "1.1.8";
-
-            if (remoteName !== PLUGIN_NAME || !remoteVersion) return;
-            if (!this.isNewerVersion(remoteVersion, currentVersion)) return;
-
             const fs = require("fs");
             const path = require("path");
             const addon = BdApi.Plugins.get(PLUGIN_NAME);
             const fileName = addon?.filename || PLUGIN_FILE;
             const targetPath = path.join(BdApi.Plugins.folder, fileName);
+            const localContent = fs.existsSync(targetPath) ? fs.readFileSync(targetPath, "utf8") : "";
+            const currentVersion = addon?.version || this.getMetaValue(localContent, "version");
 
-            fs.writeFileSync(targetPath, remoteContent, "utf8");
+            if (!currentVersion) throw new Error("Yerel surum okunamadi.");
+
+            const response = await BdApi.Net.fetch(this.withCacheBuster(UPDATE_URL), {
+                headers: {
+                    "Cache-Control": "no-cache",
+                    "Pragma": "no-cache"
+                },
+                timeout: 15000
+            });
+
+            if (!response || !response.ok) {
+                throw new Error(`Guncelleme dosyasi alinamadi. HTTP ${response?.status || "?"}`);
+            }
+
+            const remoteContent = await response.text();
+            const remoteName = this.getMetaValue(remoteContent, "name");
+            const remoteVersion = this.getMetaValue(remoteContent, "version");
+
+            this.validateUpdate(remoteContent, remoteName, remoteVersion);
+            if (!this.isNewerVersion(remoteVersion, currentVersion)) return;
+
+            const tempPath = targetPath + ".download";
+            fs.writeFileSync(tempPath, remoteContent, "utf8");
+            fs.renameSync(tempPath, targetPath);
+
             BdApi.UI?.showToast?.(`${PLUGIN_NAME} ${remoteVersion} indirildi. Discord'u yenile.`, {type: "success"});
             console.log(`${PLUGIN_NAME} ${currentVersion} -> ${remoteVersion} guncellendi.`);
         } catch (err) {
-            console.error(`${PLUGIN_NAME} guncelleme kontrolu basarisiz:`, err);
+            if (!silent) console.error(`${PLUGIN_NAME} guncelleme kontrolu basarisiz:`, err);
+        } finally {
+            this.isCheckingForUpdates = false;
         }
+    }
+
+    withCacheBuster(url) {
+        return url + (url.includes("?") ? "&" : "?") + "t=" + Date.now();
+    }
+
+    validateUpdate(content, name, version) {
+        if (name !== PLUGIN_NAME) throw new Error("Uzak dosyanin plugin adi farkli.");
+        if (!version || !/^\d+(?:\.\d+){1,3}$/.test(version)) throw new Error("Uzak dosyanin surumu gecersiz.");
+        if (!content.includes("module.exports")) throw new Error("Uzak dosya plugin govdesi icermiyor.");
+        if (content.length < 1000) throw new Error("Uzak dosya beklenenden kisa gorunuyor.");
     }
 
     getMetaValue(content, key) {
