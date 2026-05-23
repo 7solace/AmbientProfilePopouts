@@ -1,7 +1,7 @@
 /**
  * @name AmbientProfilePopouts
  * @author s7lace
- * @version 1.0.7
+ * @version 1.0.8
  * @description bombo
  * @updateUrl https://raw.githubusercontent.com/7solace/ambientprofilepopouts.plugin/main/AmbientProfilePopouts.plugin.js
  * @downloadUrl https://raw.githubusercontent.com/7solace/ambientprofilepopouts.plugin/main/AmbientProfilePopouts.plugin.js
@@ -38,15 +38,25 @@ module.exports = class AmbientProfilePopouts {
 
     injectCSS() {
         const css = `
-        /* Ana çerçeve - Daha koyu cam ve keskin neon kenar */
+        /* Koyu Temalar İçin Cam Efekti */
+        .theme-dark [class*="userProfileOuter_"] {
+            background: rgba(10, 10, 10, 0.6) !important;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.5), inset 0 0 1px 1px var(--background-modifier-accent, rgba(255,255,255,0.05));
+        }
+
+        /* Açık Temalar İçin Cam Efekti */
+        .theme-light [class*="userProfileOuter_"] {
+            background: rgba(255, 255, 255, 0.4) !important;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.1), inset 0 0 1px 1px var(--background-modifier-accent, rgba(0,0,0,0.05));
+        }
+
+        /* Ortak Ana Çerçeve Ayarları */
         [class*="userProfileOuter_"] {
-            background: rgba(10, 10, 10, 0.75) !important;
-            backdrop-filter: blur(20px) saturate(180%) !important;
+            backdrop-filter: blur(20px) saturate(150%) !important;
             position: relative !important;
             overflow: hidden !important;
             z-index: 1;
             border-radius: 12px;
-            box-shadow: 0 0 30px rgba(0, 0, 0, 0.5), inset 0 0 1px 1px rgba(255, 255, 255, 0.05);
         }
 
         /* Gösterişli ışık konteyneri */
@@ -58,15 +68,14 @@ module.exports = class AmbientProfilePopouts {
             overflow: hidden;
         }
 
-        /* Katman 1: Ana arka plan parlaması */
+        /* Katman 1: Ana arka plan parlaması (Her temada güvenli opacity) */
         .ambient-glow-main {
             position: absolute;
             inset: -50%;
             background: radial-gradient(circle at 50% 50%, var(--ambient-color, rgba(114, 137, 218, 0.5)) 0%, transparent 60%);
             background-size: 150% 150%;
-            opacity: 0.6;
+            opacity: 0.5;
             animation: ambientGlowMove 15s ease-in-out infinite alternate;
-            mix-blend-mode: color-dodge; /* Renkleri parlatır */
         }
 
         /* Katman 2: Ekstra neon parlama patlaması */
@@ -76,20 +85,19 @@ module.exports = class AmbientProfilePopouts {
             width: 80%; height: 80%;
             transform: translate(-50%, -50%) scale(1);
             background: radial-gradient(circle, var(--ambient-color-bright, rgba(114, 137, 218, 0.7)) 0%, transparent 50%);
-            opacity: 0.3;
+            opacity: 0.35;
             filter: blur(50px);
             animation: neonPulse 8s ease-in-out infinite alternate;
-            mix-blend-mode: screen;
         }
 
-        /* Kenar Neon Efekti (Kartın sınırında sızma) */
+        /* Kenar Neon Efekti */
         [class*="userProfileOuter_"]::after {
             content: '';
             position: absolute;
             inset: -2px;
             border-radius: inherit;
             padding: 2px;
-            background: linear-gradient(135deg, transparent 40%, var(--ambient-color-bright, rgba(255,255,255,0.1)) 50%, transparent 60%);
+            background: linear-gradient(135deg, transparent 40%, var(--ambient-color-bright, rgba(114, 137, 218, 0.3)) 50%, transparent 60%);
             background-size: 200% 200%;
             -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
             -webkit-mask-composite: xor;
@@ -157,15 +165,14 @@ module.exports = class AmbientProfilePopouts {
                     ctx.drawImage(img, 0, 0, 1, 1);
                     const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
                     
-                    // Rengi al ve parlak bir versiyonunu oluştur
                     const baseColor = "rgb(" + r + ", " + g + ", " + b + ")";
-                    // Daha doygun ve parlak renk için basit bir manipülasyon (RGB değerlerini 1.3 ile çarp ama 255'i geçme)
+                    
+                    // Renk parlaklığını artır
                     const br = Math.min(255, Math.floor(r * 1.3));
                     const bg = Math.min(255, Math.floor(g * 1.3));
                     const bb = Math.min(255, Math.floor(b * 1.3));
                     const brightColor = "rgb(" + br + ", " + bg + ", " + bb + ")";
                     
-                    // Gösterişli konteyneri oluştur
                     const containerDiv = document.createElement('div');
                     containerDiv.className = 'ambient-profile-container';
                     
@@ -179,7 +186,6 @@ module.exports = class AmbientProfilePopouts {
                     popGlow.style.setProperty('--ambient-color-bright', brightColor);
                     containerDiv.appendChild(popGlow);
 
-                    // Kenar neon efekti için rengi ana elemente ata
                     popout.style.setProperty('--ambient-color-bright', "rgba(" + br + ", " + bg + ", " + bb + ", 0.9)");
                     
                     popout.insertBefore(containerDiv, popout.firstChild);
