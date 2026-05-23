@@ -1,0 +1,1 @@
+# ambientprofilepopouts.plugin
