@@ -2,8 +2,9 @@
  * @name AmbientProfilePopouts
  * @author s7lace
  * @authorId 0
- * @version 1.1.5
- * @description bombo bir profil popout deneyimi için ışık efektleri ekler
+ * @version 1.1.6
+ * @description bombo dddddddddddddddddddddddd
+ dddddddddbir profil popout deneyimi için ışık efektleri ekler
  * @source https://github.com/7solace/AmbientProfilePopouts
  * @updateUrl https://raw.githubusercontent.com/7solace/AmbientProfilePopouts/main/AmbientProfilePopouts.plugin.js
  */
