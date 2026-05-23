@@ -1,7 +1,7 @@
 /**
  * @name AmbientProfilePopouts
  * @author s7lace
- * @version 1.3.4
+ * @version 1.3.5
  * @description Adds adaptive ambient glow effects and useful profile tools to Discord profile popouts.
  * @updateUrl https://raw.githubusercontent.com/7solace/AmbientProfilePopouts/main/AmbientProfilePopouts.plugin.js
  * @downloadUrl https://raw.githubusercontent.com/7solace/AmbientProfilePopouts/main/AmbientProfilePopouts.plugin.js
