@@ -10,6 +10,7 @@ A customizable BetterDiscord plugin focused on immersive visuals, smooth UI anim
 2. Place the file inside your BetterDiscord plugins folder
 3. Enable the plugin from BetterDiscord settings
 
+PLEASE CONSIDER this plugin is still on process, especially the animation side is not fully completed although you can still customize or disable that
 ---
 ## Features
 
