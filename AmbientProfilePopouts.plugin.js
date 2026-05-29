@@ -1,8 +1,8 @@
 /**
  * @name AmbientProfilePopouts
  * @author s7lace
- * @version 1.5.1
- * @description Adds adaptive ambient glow, profile tools, and per-area animation system to Discord.
+ * @version 1.5.3
+ * @description Adds ambient blur and animation effects to profile popouts, modals, sidebars, and more. Highly customizable with per-area animation styles and speeds. 
  * @updateUrl https://raw.githubusercontent.com/7solace/AmbientProfilePopouts/main/AmbientProfilePopouts.plugin.js
  * @downloadUrl https://raw.githubusercontent.com/7solace/AmbientProfilePopouts/main/AmbientProfilePopouts.plugin.js
  */
@@ -22,7 +22,7 @@ const PROFILE_SELECTORS = [
 const IMAGE_SELECTORS = [
     'img[src*="i.scdn.co"]','img[src*="spotify"]',
     'svg foreignObject img','img[class*="avatar"]',
-    '[class*="avatar_"] img','[class*="banner_"] img','[class*="profileBanner_"] img'
+    '[class*="avatar_"] img','[class*="banner_\"] img','[class*="profileBanner_\"] img'
 ].join(",");
 
 const LINK_SCOPE_SELECTORS = [
@@ -36,23 +36,26 @@ const SUSPICIOUS_DOMAINS = new Set([
 
 // ─── Animation definitions ───────────────────────────────────────────────────
 
-const ANIM_STYLES = ["none","fade","slide-up","slide-down","slide-left","slide-right","scale","blur","flip","spring"];
+const ANIM_STYLES = ["none","fade","slide-up","slide-down","slide-left","slide-right","scale","blur","flip","spring","bounce","elastic","rotate","pulse","shake","jelly","zoom-in","zoom-out","slide-fade","pop"];
 const ANIM_STYLE_LABELS = {
-    none:"Kapalı", fade:"Soluklaşma (Fade)",
-    "slide-up":"Yukarı Kayma (Slide)", "slide-down":"Aşağı Kayma (Slide)",
-    "slide-left":"Sola Kayma (Slide)", "slide-right":"Sağa Kayma (Slide)",
-    scale:"Büyüme (Scale)", blur:"Odaklanma (Blur)", flip:"Dönme (Flip)", spring:"Esnek Yay (Spring)"
+    none:"Kapalı", fade:"Fade (Soluklaşma)",
+    "slide-up":"Slide Yukarı", "slide-down":"Slide Aşağı",
+    "slide-left":"Slide Sol", "slide-right":"Slide Sağ",
+    scale:"Scale / Zoom", blur:"Blur", flip:"Flip", spring:"Spring / Bounce",
+    bounce:"Bounce", elastic:"Elastic", rotate:"Rotate", pulse:"Pulse",
+    shake:"Shake", jelly:"Jelly", "zoom-in":"Zoom In", "zoom-out":"Zoom Out",
+    "slide-fade":"Slide + Fade", pop:"Pop"
 };
 
 const ANIM_AREAS = {
-    messages:     { label:"Yeni Mesaj Akışı",        selector:'[id^="chat-messages-"] [class*="message_"]:not(.amb-done)' },
+    messages:     { label:"Mesaj Girişi",            selector:'[id^="chat-messages-"] [class*="message_"]:not(.amb-done)' },
     channelSwitch:{ label:"Kanal Değiştirme",        selector:'[class*="chat_"],[class*="chatContent_"]' },
     serverSwitch: { label:"Sunucu Değiştirme",       selector:'[class*="guilds_"],[class*="guildsList_"]' },
-    sidebar:      { label:"Sol Panel (Sidebar)",     selector:'[class*="sidebar_"],[class*="panels_"]' },
-    memberSidebar:{ label:"Üye Listesi (Right)",     selector:'[class*="membersWrap_"],[class*="members_"]' },
-    modals:       { label:"Açılır Pencere & Profil", selector:'[class*="modal_"],[class*="layer_"],[class*="userPopoutOuter_"]' },
-    emojiPicker:  { label:"İfade Seçici (Emoji)",    selector:'[class*="emojiPicker_"],[class*="reactionPicker_"]' },
-    toasts:       { label:"Bildirimler (Toasts)",    selector:'[class*="toast_"],[class*="toastItem_"],[class*="notice_"]' },
+    sidebar:      { label:"Sidebar",                 selector:'[class*="sidebar_"],[class*="panels_"]' },
+    memberSidebar:{ label:"Member Sidebar",          selector:'[class*="membersWrap_"],[class*="members_"]' },
+    modals:       { label:"Modal & Popout",          selector:'[class*="modal_"],[class*="layer_"],[class*="userPopoutOuter_"]' },
+    emojiPicker:  { label:"Emoji & Reaction Picker", selector:'[class*="emojiPicker_"],[class*="reactionPicker_"]' },
+    toasts:       { label:"Bildirim Toast\'ları",    selector:'[class*="toast_"],[class*="toastItem_"],[class*="notice_"]' },
     contextMenu:  { label:"Sağ Tık Menüsü",         selector:'[class*="menu_"][role="menu"]' },
 };
 
@@ -66,21 +69,21 @@ const DEFAULT_SETTINGS = {
     animationSpeed: 1.0,
     hideTyping:     true,
     anim: {
-        messages:     { style:"slide-up",    duration:280, enabled:true },
-        channelSwitch:{ style:"fade",        duration:220, enabled:true },
-        serverSwitch: { style:"scale",       duration:240, enabled:true },
-        sidebar:      { style:"slide-left",  duration:260, enabled:true },
-        memberSidebar:{ style:"slide-right", duration:240, enabled:true },
-        modals:       { style:"spring",      duration:340, enabled:true },
-        emojiPicker:  { style:"scale",       duration:180, enabled:true },
-        toasts:       { style:"slide-right", duration:260, enabled:true },
-        contextMenu:  { style:"scale",       duration:150, enabled:true },
+        messages:     { style:"slide-up",    duration:320, enabled:true },
+        channelSwitch:{ style:"fade",        duration:260, enabled:true },
+        serverSwitch: { style:"scale",       duration:280, enabled:true },
+        sidebar:      { style:"slide-left",  duration:300, enabled:true },
+        memberSidebar:{ style:"slide-right", duration:280, enabled:true },
+        modals:       { style:"spring",      duration:380, enabled:true },
+        emojiPicker:  { style:"scale",       duration:220, enabled:true },
+        toasts:       { style:"slide-right", duration:300, enabled:true },
+        contextMenu:  { style:"scale",       duration:180, enabled:true },
     }
 };
 
 module.exports = class AmbientProfilePopouts {
 
-    // ─── Settings Panel Redesign ─────────────────────────────────────────────────
+    // ─── Settings ────────────────────────────────────────────────────────────────
 
     getSettings() {
         const saved = BdApi.Data.load(PLUGIN_NAME, "settings") || {};
@@ -95,189 +98,888 @@ module.exports = class AmbientProfilePopouts {
 
     getSettingsPanel() {
         const s = this.getSettings();
-        const wrap = document.createElement("div");
-        wrap.style.cssText = `
-            padding: 20px;
+        
+        // Create custom modal container
+        const modalOverlay = document.createElement("div");
+        modalOverlay.className = "amb-modal-overlay";
+        modalOverlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 99999;
             display: flex;
-            flex-direction: column;
-            gap: 24px;
-            font-family: var(--font-primary, 'gg sans', sans-serif);
-            color: #dbdee1;
+            align-items: center;
+            justify-content: center;
+        `;
+        
+        const modalContainer = document.createElement("div");
+        modalContainer.className = "amb-modal-container";
+        modalContainer.style.cssText = `
+            width: 95vw;
+            height: 95vh;
+            min-width: 1400px;
+            min-height: 900px;
             background: #2b2d31;
             border-radius: 12px;
-            max-height: 85vh;
-            overflow-y: auto;
-            box-sizing: border-box;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
         `;
-
-        // Özel Scrollbar CSS'i Ekleme
-        const styleId = "AmbientSettingsScrollbar";
-        if (!document.getElementById(styleId)) {
-            const style = document.createElement("style");
-            style.id = styleId;
-            style.textContent = `
-                .amb-settings-wrap::-webkit-scrollbar { width: 8px; }
-                .amb-settings-wrap::-webkit-scrollbar-track { background: transparent; }
-                .amb-settings-wrap::-webkit-scrollbar-thumb { background: #1e1f22; border-radius: 4px; }
-                .amb-settings-wrap::-webkit-scrollbar-thumb:hover { background: #111214; }
-                .amb-input-range { -webkit-appearance: none; width: 100%; height: 6px; background: #1e1f22; border-radius: 3px; outline: none; transition: background .15s ease; }
-                .amb-input-range::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: #5865f2; cursor: pointer; transition: transform .1s ease, background .15s ease; }
-                .amb-input-range::-webkit-slider-thumb:hover { transform: scale(1.15); background: #4752c4; }
-                .amb-select-custom { background: #1e1f22; border: 1px solid #3f4147; border-radius: 6px; color: #dbdee1; padding: 6px 12px; font-size: 13px; font-weight: 500; cursor: pointer; outline: none; transition: border-color .15s ease; }
-                .amb-select-custom:focus { border-color: #5865f2; }
-                .amb-card { background: #232428; border: 1px solid #1e1f22; border-radius: 8px; padding: 14px; display: flex; flex-direction: column; gap: 12px; transition: border-color .2s ease; }
-                .amb-card:hover { border-color: #3f4147; }
-            `;
-            document.head.appendChild(style);
-        }
-        wrap.classList.add("amb-settings-wrap");
-
-        const secHead = (text, icon) => {
-            const h = document.createElement("div");
-            h.style.cssText = "font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #949ba4; padding-bottom: 8px; border-bottom: 1px solid #3f4147; margin-top: 10px; display: flex; align-items: center; gap: 8px;";
-            h.innerHTML = `<span>${icon}</span> ${text}`; return h;
-        };
-
-        const mkSlider = (label, desc, min, max, step, val, onChange) => {
-            const row = document.createElement("div");
-            row.style.cssText = "display: flex; flex-direction: column; gap: 6px;";
-            const top = document.createElement("div");
-            top.style.cssText = "display: flex; justify-content: space-between; align-items: center;";
-            const lbl = document.createElement("span");
-            lbl.style.cssText = "font-size: 14px; font-weight: 600; color: #f2f3f5;"; lbl.textContent = label;
-            const valEl = document.createElement("span");
-            valEl.style.cssText = "font-size: 12px; font-weight: 700; color: #5865f2; background: rgba(88,101,242,0.1); padding: 2px 6px; border-radius: 4px;";
-            valEl.textContent = step < 1 ? parseFloat(val).toFixed(2) : String(val);
-            top.append(lbl, valEl);
-            const d = document.createElement("div");
-            d.style.cssText = "font-size: 12px; color: #949ba4; line-height: 1.4;"; d.textContent = desc;
-            const inp = document.createElement("input");
-            inp.classList.add("amb-input-range");
-            inp.type="range"; inp.min=min; inp.max=max; inp.step=step; inp.value=val;
-            inp.addEventListener("input", () => {
-                const v = parseFloat(inp.value);
-                valEl.textContent = step < 1 ? v.toFixed(2) : String(v);
-                onChange(v);
-            });
-            row.append(top, d, inp); return row;
-        };
-
-        const mkToggle = (label, desc, val, onChange) => {
-            const row = document.createElement("div");
-            row.style.cssText = "display: flex; justify-content: space-between; align-items: center; padding: 4px 0;";
-            const left = document.createElement("div"); left.style.cssText = "display: flex; flex-direction: column; gap: 3px; max-width: 80%;";
-            const t = document.createElement("span"); t.style.cssText = "font-size: 14px; font-weight: 600; color: #f2f3f5;"; t.textContent = label;
-            const d = document.createElement("span"); d.style.cssText = "font-size: 12px; color: #949ba4; line-height: 1.4;"; d.textContent = desc;
-            left.append(t, d);
-            const btn = document.createElement("button"); let state = val;
-            const render = () => {
-                btn.style.cssText = `width: 42px; height: 24px; border: 0; border-radius: 14px; cursor: pointer; background: ${state ? "#248046" : "#80848e"}; transition: background .15s ease; position: relative; flex-shrink: 0;`;
-                btn.innerHTML = `<span style="position: absolute; top: 3px; left: ${state ? "21px" : "3px"}; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: left .15s cubic-bezier(0.25, 1, 0.5, 1); box-shadow: 0 2px 4px rgba(0,0,0,0.2); display: block;"></span>`;
-            };
-            render();
-            btn.addEventListener("click", () => { state=!state; render(); onChange(state); });
-            row.append(left, btn); return row;
-        };
-
-        const mkSelect = (label, options, val, onChange) => {
-            const row = document.createElement("div");
-            row.style.cssText = "display: flex; align-items: center; justify-content: space-between; gap: 12px;";
-            const lbl = document.createElement("span"); lbl.style.cssText = "font-size: 13px; font-weight: 600; color: #b5bac1;"; lbl.textContent = label;
-            const sel = document.createElement("select");
-            sel.classList.add("amb-select-custom");
-            for (const opt of options) {
-                const o = document.createElement("option"); o.value=opt.value; o.textContent=opt.label;
-                if (opt.value===val) o.selected=true; sel.appendChild(o);
-            }
-            sel.addEventListener("change", () => onChange(sel.value));
-            row.append(lbl, sel); return row;
-        };
-
-        // ── Glass & Ambient section ──
-        wrap.appendChild(secHead("Cam & Ambient Efektleri", "🔮"));
-        const glassCard = document.createElement("div");
-        glassCard.classList.add("amb-card");
         
-        const glassSliders = [
-            {key:"blurStrength",   label:"Arka Plan Bulanıklığı (Glass Blur)", desc:"Açılır pencerelerin arkasındaki bulanıklık yoğunluğu", min:0,  max:60, step:1},
-            {key:"innerBlur",      label:"İç Katman Bulanıklığı",             desc:"Profil içi panellerin odak/blur yumuşaklığı",       min:0,  max:30, step:1},
-            {key:"panelAlpha",     label:"Panel Opaklığı",                   desc:"0 (Tamamen Şeffaf) ile 1 (Tam Opak) arası",        min:0,  max:1,  step:0.01},
-            {key:"glowOpacity",    label:"Ortam Işığı (Glow) Yoğunluğu",       desc:"Profil arkasındaki renkli yansıma gücü",            min:0,  max:1,  step:0.01},
-            {key:"sheenOpacity",   label:"Dinamik Parlama (Sheen)",           desc:"Akan parlak ışık efektinin netliği",               min:0,  max:1,  step:0.01},
-            {key:"edgeAlpha",      label:"Kenar Çizgisi Işığı",               desc:"Profil kartının lüks çerçeve neon opaklığı",         min:0,  max:1,  step:0.01},
-            {key:"animationSpeed", label:"Aura Döngü Hızı",                  desc:"Glow hareket hızı katsayısı (Varsayılan: 1x)",      min:0.1,max:3,  step:0.1},
+        const modalHeader = document.createElement("div");
+        modalHeader.style.cssText = `
+            padding: 20px 24px;
+            background: #1e1f22;
+            border-bottom: 1px solid #1f2023;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        `;
+        
+        const modalTitle = document.createElement("h2");
+        modalTitle.textContent = "AmbientProfilePopouts Settings";
+        modalTitle.style.cssText = `
+            margin: 0;
+            font-size: 20px;
+            font-weight: 600;
+            color: #dbdee1;
+        `;
+        
+        const modalCloseBtn = document.createElement("button");
+        modalCloseBtn.textContent = "✕";
+        modalCloseBtn.style.cssText = `
+            width: 32px;
+            height: 32px;
+            border: none;
+            border-radius: 4px;
+            background: #4e5058;
+            color: #dbdee1;
+            font-size: 18px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        `;
+        modalCloseBtn.addEventListener("mouseenter", () => {
+            modalCloseBtn.style.background = "#ed4245";
+        });
+        modalCloseBtn.addEventListener("mouseleave", () => {
+            modalCloseBtn.style.background = "#4e5058";
+        });
+        modalCloseBtn.addEventListener("click", () => {
+            modalOverlay.remove();
+        });
+        
+        modalHeader.appendChild(modalTitle);
+        modalHeader.appendChild(modalCloseBtn);
+        
+        const modalContent = document.createElement("div");
+        modalContent.style.cssText = `
+            flex: 1;
+            overflow: hidden;
+        `;
+        
+        const wrap = document.createElement("div");
+        wrap.className = "amb-settings-panel";
+        wrap.style.cssText = `
+            width: 100%;
+            height: 100%;
+            display: flex;
+        `;
+        
+        modalContent.appendChild(wrap);
+        modalContainer.appendChild(modalHeader);
+        modalContainer.appendChild(modalContent);
+        modalOverlay.appendChild(modalContainer);
+        
+        // Append to body
+        document.body.appendChild(modalOverlay);
+        
+        // BetterAnimations tarzı modern CSS
+        const styleBlock = document.createElement("style");
+        styleBlock.textContent = `
+            .amb-settings-panel {
+    display: flex;
+
+    width: 100%;
+    height: 100%;
+
+    overflow: hidden;
+
+    font-family: var(--font-primary, 'gg sans', sans-serif);
+    color: #dbdee1;
+    background: #2b2d31;
+
+    position: relative;
+}
+
+            
+            /* Sidebar */
+            .amb-sidebar {
+                width: 320px;
+                padding: 20px;
+                background: #1e1f22;
+                border-right: 1px solid #1f2023;
+                display: flex;
+                flex-direction: column;
+                gap: 4px;
+                overflow-y: auto;
+            }
+            .amb-sidebar::-webkit-scrollbar { width: 8px; }
+            .amb-sidebar::-webkit-scrollbar-track { background: #2b2d31; }
+            .amb-sidebar::-webkit-scrollbar-thumb { background: #1a1b1e; border-radius: 4px; }
+            
+            .amb-sidebar-item {
+                padding: 10px 12px; border-radius: 4px; cursor: pointer;
+                font-size: 14px; font-weight: 500; color: #b5bac1;
+                transition: all 0.15s ease; display: flex; align-items: center; gap: 12px;
+            }
+            .amb-sidebar-item:hover { background: #3f4147; color: #dbdee1; }
+            .amb-sidebar-item.active { background: #5865f2; color: #fff; }
+            .amb-sidebar-divider { height: 1px; background: rgba(255,255,255,0.05); margin: 8px 0; }
+            
+            /* Main Content */
+            .amb-main-content {
+                flex: 1;
+                padding: 32px;
+                overflow-y: auto;
+                background: #313338;
+                min-width: 0;
+            }
+            .amb-main-content::-webkit-scrollbar { width: 8px; }
+            .amb-main-content::-webkit-scrollbar-track { background: #2b2d31; }
+            .amb-main-content::-webkit-scrollbar-thumb { background: #1a1b1e; border-radius: 4px; }
+            
+            /* Content Sections */
+            .amb-content-section { display: none; position: relative; }
+            .amb-content-section.active { display: block; }
+            
+            .amb-section-title {
+                font-size: 20px; font-weight: 600; color: #fff; margin-bottom: 8px;
+            }
+            .amb-section-desc { font-size: 14px; color: #b5bac1; margin-bottom: 20px; line-height: 1.4; }
+            
+            /* Animation Grid */
+            .amb-anim-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+                gap: 20px;
+                margin-top: 20px;
+            }
+            
+            /* Animation Style Cards */
+            .amb-style-card {
+                background: #2b2d31; 
+                border: 1px solid #1f2023; border-radius: 8px; 
+                padding: 20px; display: flex; flex-direction: column; gap: 12px; 
+                transition: all 0.15s ease; cursor: pointer;
+            }
+            .amb-style-card:hover { 
+                border-color: #5865f2; 
+            }
+            .amb-style-card.selected { border-color: #5865f2; background: #3f4147; }
+            
+            .amb-style-preview {
+                height: 140px;
+                background: linear-gradient(135deg, #1e1f22 0%, #2b2d31 100%); 
+                border-radius: 8px; display: flex; align-items: center; justify-content: center;
+                border: 1px solid #1f2023; perspective: 600px;
+                overflow: hidden;
+                position: relative;
+            }
+            .amb-style-preview::before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: radial-gradient(circle at 50% 50%, rgba(88,101,242,0.1) 0%, transparent 70%);
+                pointer-events: none;
+            }
+            .amb-style-preview-box {
+                width: 50px; height: 35px; background: linear-gradient(135deg, #5865f2 0%, #7289da 100%); 
+                border-radius: 8px; opacity: 0;
+                box-shadow: 0 4px 20px rgba(88,101,242,0.4);
+            }
+            
+            .amb-style-name { font-size: 14px; font-weight: 600; color: #dbdee1; text-align: center; }
+            .amb-style-desc { font-size: 12px; color: #949ba4; text-align: center; margin-top: 4px; line-height: 1.3; }
+            .amb-style-actions { display: flex; gap: 8px; justify-content: center; }
+            .amb-style-btn {
+                width: 32px; height: 32px; border: 0; border-radius: 4px; cursor: pointer;
+                background: #3f4147; color: #b5bac1;
+                display: flex; align-items: center; justify-content: center;
+                transition: all 0.15s ease; font-size: 14px;
+            }
+            .amb-style-btn:hover { background: #4f545c; color: #dbdee1; }
+            
+            /* Settings Elements */
+            .amb-setter-row { 
+                display: flex; flex-direction: column; gap: 8px; 
+                background: #2b2d31; 
+                padding: 16px; border-radius: 8px; border: 1px solid #1f2023;
+                margin-bottom: 12px;
+            }
+            .amb-setter-top { display: flex; justify-content: space-between; align-items: center; }
+            .amb-setter-lbl { font-size: 14px; font-weight: 600; color: #dbdee1; }
+            .amb-setter-val { font-size: 14px; font-weight: 600; color: #5865f2; background: #5865f220; padding: 2px 8px; border-radius: 4px; }
+            .amb-setter-desc { font-size: 13px; color: #949ba4; line-height: 1.4; }
+            
+            /* Modal Buttons (reused for detail section) */
+            .amb-modal-btn {
+                padding: 10px 16px; border: 0; border-radius: 4px;
+                font-size: 14px; font-weight: 500; cursor: pointer;
+                transition: all 0.15s ease;
+            }
+            .amb-modal-btn-primary {
+                background: #5865f2;
+                color: #fff;
+            }
+            .amb-modal-btn-primary:hover { background: #4752c4; }
+            .amb-modal-btn-secondary {
+                background: #4e5058; color: #dbdee1;
+            }
+            .amb-modal-btn-secondary:hover { background: #6d6f78; }
+            
+            .amb-settings-panel input[type="range"] {
+                width: 100%; height: 6px; -webkit-appearance: none; 
+                background: linear-gradient(90deg, #4e5058 0%, #5865f2 100%); 
+                border-radius: 3px; outline: none; margin-top: 6px; cursor: pointer;
+            }
+            .amb-settings-panel input[type="range"]::-webkit-slider-thumb {
+                -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; 
+                background: linear-gradient(135deg, #5865f2, #7289da); 
+                cursor: pointer; transition: all 0.2s ease; box-shadow: 0 2px 8px rgba(88,101,242,0.4);
+            }
+            .amb-settings-panel input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.1); }
+            
+            .amb-toggle-row { 
+                display: flex; justify-content: space-between; align-items: center; 
+                background: #2b2d31; 
+                padding: 16px; border-radius: 8px; border: 1px solid #1f2023;
+            }
+            .amb-toggle-btn {
+                width: 44px; height: 24px; border: 0; border-radius: 12px; cursor: pointer; position: relative; 
+                transition: all 0.2s ease; background: #4e5058;
+            }
+            .amb-toggle-dot {
+                position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; 
+                background: #fff; transition: all 0.2s ease; box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            }
+            
+            .amb-select-el {
+                background: #1e1f22; 
+                border: 1px solid #1f2023; border-radius: 4px; 
+                color: #dbdee1; padding: 8px 12px; font-size: 14px; font-weight: 500; 
+                cursor: pointer; outline: none; width: 100%;
+            }
+            .amb-select-el:hover { border-color: #5865f2; }
+            .amb-select-el option { background: #1e1f22; color: #dbdee1; }
+            
+            .amb-btn-reset {
+                padding: 10px 16px; border: 1px solid #ed4245; border-radius: 4px; 
+                background: transparent; 
+                color: #ed4245; font-size: 14px; font-weight: 500; cursor: pointer; 
+                transition: all 0.15s ease; margin-top: 16px;
+            }
+            .amb-btn-reset:hover { 
+                background: #ed4245; color: #fff;
+            }
+        `;
+        wrap.appendChild(styleBlock);
+
+
+        // Sidebar
+        const sidebar = document.createElement("div");
+        sidebar.className = "amb-sidebar";
+        
+        const sidebarItems = [
+            { id: "home", label: "🏠 Ana Sayfa", icon: "home" },
+            { id: "messages", label: "💬 Mesajlar", icon: "message" },
+            { id: "modals", label: "🪟 Modals & Popouts", icon: "window" },
+            { id: "tooltips", label: "💡 Tooltips", icon: "tooltip" },
+            { id: "menus", label: "📋 Menüler", icon: "menu" },
+            { id: "settings", label: "⚙️ Genel Ayarlar", icon: "settings" }
         ];
         
+        let activeSection = "home";
+        
+        sidebarItems.forEach(item => {
+            const btn = document.createElement("div");
+            btn.className = `amb-sidebar-item ${item.id === activeSection ? 'active' : ''}`;
+            btn.textContent = item.label;
+            btn.dataset.section = item.id;
+            btn.addEventListener("click", () => {
+                document.querySelectorAll('.amb-sidebar-item').forEach(el => el.classList.remove('active'));
+                btn.classList.add('active');
+                document.querySelectorAll('.amb-content-section').forEach(el => el.classList.remove('active'));
+                document.querySelector(`.amb-section-${item.id}`).classList.add('active');
+                activeSection = item.id;
+                previousSection = item.id;
+            });
+            sidebar.appendChild(btn);
+        });
+        
+        const divider = document.createElement("div");
+        divider.className = "amb-sidebar-divider";
+        sidebar.appendChild(divider);
+        
+        wrap.appendChild(sidebar);
+
+        // Main Content
+        const mainContent = document.createElement("div");
+        mainContent.className = "amb-main-content";
+        
+        // Home Section
+        const homeSection = document.createElement("div");
+        homeSection.className = "amb-content-section amb-section-home active";
+        homeSection.innerHTML = `
+            <h2 class="amb-section-title">AmbientProfilePopouts</h2>
+            <p class="amb-section-desc">Discord için gelişmiş animasyon ve profil efektleri eklentisi. Sol menüden farklı kategorilere geçerek animasyon stillerini test edebilirsiniz.</p>
+            
+            <h3 style="font-size:18px; font-weight:700; color:#fff; margin:24px 0 16px;">🎬 Tüm Animasyon Stilleri</h3>
+            <div class="amb-anim-grid" id="allAnimGrid"></div>
+        `;
+        mainContent.appendChild(homeSection);
+        
+        // Messages Section
+        const messagesSection = document.createElement("div");
+        messagesSection.className = "amb-content-section amb-section-messages";
+        messagesSection.innerHTML = `
+            <h2 class="amb-section-title">Mesaj Animasyonları</h2>
+            <p class="amb-section-desc">Sohbet mesajları için animasyon stillerini buradan yapılandırabilirsiniz.</p>
+            <div class="amb-anim-grid" id="messagesAnimGrid"></div>
+        `;
+        mainContent.appendChild(messagesSection);
+        
+        // Modals Section
+        const modalsSection = document.createElement("div");
+        modalsSection.className = "amb-content-section amb-section-modals";
+        modalsSection.innerHTML = `
+            <h2 class="amb-section-title">Modals & Popouts</h2>
+            <p class="amb-section-desc">Modal pencereleri ve profil popout'ları için animasyon stilleri.</p>
+            <div class="amb-anim-grid" id="modalsAnimGrid"></div>
+        `;
+        mainContent.appendChild(modalsSection);
+        
+        // Tooltips Section
+        const tooltipsSection = document.createElement("div");
+        tooltipsSection.className = "amb-content-section amb-section-tooltips";
+        tooltipsSection.innerHTML = `
+            <h2 class="amb-section-title">Tooltips</h2>
+            <p class="amb-section-desc">Tooltip ve bilgi balonları için animasyon stilleri.</p>
+            <div class="amb-anim-grid" id="tooltipsAnimGrid"></div>
+        `;
+        mainContent.appendChild(tooltipsSection);
+        
+        // Menus Section
+        const menusSection = document.createElement("div");
+        menusSection.className = "amb-content-section amb-section-menus";
+        menusSection.innerHTML = `
+            <h2 class="amb-section-title">Menüler</h2>
+            <p class="amb-section-desc">Sağ tık menüleri ve dropdown menüler için animasyon stilleri.</p>
+            <div class="amb-anim-grid" id="menusAnimGrid"></div>
+        `;
+        mainContent.appendChild(menusSection);
+        
+        // Animation Detail Section (dynamic)
+        const animDetailSection = document.createElement("div");
+        animDetailSection.className = "amb-content-section amb-section-anim-detail";
+        animDetailSection.innerHTML = `
+            <button class="amb-modal-btn amb-modal-btn-secondary" id="backToGrid" style="margin-bottom: 20px;">← Grid'e Dön</button>
+            <h2 class="amb-section-title" id="animDetailTitle">Animasyon Detayları</h2>
+            <p class="amb-section-desc" id="animDetailDesc">Bu animasyon stilinin farklı alanlar için hız ayarlarını buradan yapılandırabilirsiniz.</p>
+            <div id="animDetailSettings"></div>
+        `;
+        mainContent.appendChild(animDetailSection);
+        
+        // Settings Section
+        const settingsSection = document.createElement("div");
+        settingsSection.className = "amb-content-section amb-section-settings";
+        mainContent.appendChild(settingsSection);
+        
+        wrap.appendChild(mainContent);
+
+        // Animation Detail Section functionality
+        const backToGridBtn = animDetailSection.querySelector('#backToGrid');
+        const animDetailTitle = animDetailSection.querySelector('#animDetailTitle');
+        const animDetailDesc = animDetailSection.querySelector('#animDetailDesc');
+        const animDetailSettings = animDetailSection.querySelector('#animDetailSettings');
+        let currentDetailStyle = null;
+        let previousSection = 'home';
+
+        const showAnimDetail = (style, label) => {
+            currentDetailStyle = style;
+            animDetailTitle.textContent = `${label} - Animasyon Ayarları`;
+            animDetailDesc.textContent = `Bu animasyon stilinin farklı Discord alanları için hız ayarlarını buradan yapılandırabilirsiniz.`;
+            
+            // Clear previous settings
+            animDetailSettings.innerHTML = '';
+            
+            const cur = this.getSettings();
+            const areaLabels = {
+                messages: "Mesaj Girişi",
+                channelSwitch: "Kanal Değiştirme",
+                serverSwitch: "Sunucu Değiştirme",
+                sidebar: "Sidebar",
+                memberSidebar: "Member Sidebar",
+                modals: "Modal & Popout",
+                emojiPicker: "Emoji Picker",
+                toasts: "Bildirim Toast'ları",
+                contextMenu: "Sağ Tık Menüsü"
+            };
+            const areaDescriptions = {
+                messages: "Sohbet mesajlarının görünme animasyonu",
+                channelSwitch: "Kanal değiştirirken geçiş animasyonu",
+                serverSwitch: "Sunucu değiştirirken geçiş animasyonu",
+                sidebar: "Sol sidebar'ın görünüme animasyonu",
+                memberSidebar: "Sağ member sidebar'ın görünüme animasyonu",
+                modals: "Modal pencerelerinin ve profil popout'ların animasyonu",
+                emojiPicker: "Emoji picker ve reaction picker'ın animasyonu",
+                toasts: "Bildirim toast'larının (sağ üst bildirimler) animasyonu",
+                contextMenu: "Sağ tık menülerinin açılış animasyonu"
+            };
+            
+            // Create settings for each area
+            for (const [areaKey, areaLabel] of Object.entries(areaLabels)) {
+                if (cur.anim[areaKey]) {
+                    const areaSettings = document.createElement('div');
+                    areaSettings.className = 'amb-setter-row';
+                    const currentDuration = cur.anim[areaKey].duration || 300;
+                    const isApplied = cur.anim[areaKey].style === style;
+                    const isEnabled = cur.anim[areaKey].enabled !== false;
+                    
+                    // Area-specific preview design
+                    const getAreaPreviewHTML = (area) => {
+                        switch(area) {
+                            case 'messages':
+                                return `
+                                    <div class="amb-style-preview" style="height: 80px; margin: 8px 0; background: #1e1f22; border-radius: 8px; padding: 12px; position: relative;">
+                                        <div class="amb-preview-message" style="background: #313338; border-radius: 8px; padding: 8px 12px; max-width: 200px; opacity: 0;">
+                                            <div style="display: flex; gap: 8px; align-items: center;">
+                                                <div style="width: 24px; height: 24px; background: #5865f2; border-radius: 50%;"></div>
+                                                <div style="flex: 1;">
+                                                    <div style="height: 8px; background: #4e5058; border-radius: 4px; margin-bottom: 4px; width: 80%;"></div>
+                                                    <div style="height: 8px; background: #4e5058; border-radius: 4px; width: 60%;"></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `;
+                            case 'sidebar':
+                                return `
+                                    <div class="amb-style-preview" style="height: 80px; margin: 8px 0; background: #1e1f22; border-radius: 8px; padding: 12px; display: flex; gap: 8px;">
+                                        <div class="amb-preview-sidebar-item" style="width: 40px; height: 40px; background: #313338; border-radius: 50%; opacity: 0;"></div>
+                                        <div class="amb-preview-sidebar-item" style="width: 40px; height: 40px; background: #313338; border-radius: 50%; opacity: 0;"></div>
+                                        <div class="amb-preview-sidebar-item" style="width: 40px; height: 40px; background: #313338; border-radius: 50%; opacity: 0;"></div>
+                                    </div>
+                                `;
+                            case 'modals':
+                                return `
+                                    <div class="amb-style-preview" style="height: 80px; margin: 8px 0; background: #1e1f22; border-radius: 8px; padding: 12px; display: flex; align-items: center; justify-content: center;">
+                                        <div class="amb-preview-modal" style="width: 120px; height: 60px; background: #313338; border-radius: 8px; opacity: 0;"></div>
+                                    </div>
+                                `;
+                            case 'toasts':
+                                return `
+                                    <div class="amb-style-preview" style="height: 80px; margin: 8px 0; background: #1e1f22; border-radius: 8px; padding: 12px; display: flex; align-items: center; justify-content: center;">
+                                        <div class="amb-preview-toast" style="width: 180px; height: 40px; background: #3ba55c; border-radius: 4px; opacity: 0;"></div>
+                                    </div>
+                                `;
+                            default:
+                                return `
+                                    <div class="amb-style-preview" style="height: 60px; margin: 8px 0;">
+                                        <div class="amb-style-preview-box" style="width: 30px; height: 20px;"></div>
+                                    </div>
+                                `;
+                        }
+                    };
+                    
+                    areaSettings.innerHTML = `
+                        <div class="amb-setter-top">
+                            <span class="amb-setter-lbl">${areaLabel}</span>
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <span class="amb-setter-val">${currentDuration}ms ${isApplied ? '✓' : ''}</span>
+                                <button class="amb-toggle-btn area-toggle-btn" data-area="${areaKey}" style="width: 40px; height: 20px; border: 0; border-radius: 10px; cursor: pointer; position: relative; transition: all 0.2s ease; background: ${isEnabled ? '#5865f2' : '#4e5058'};">
+                                    <span class="amb-toggle-dot" style="position: absolute; top: 2px; left: ${isEnabled ? '20px' : '2px'}; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: all 0.2s ease; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"></span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="amb-setter-desc">${areaDescriptions[areaKey] || ''}</div>
+                        <div class="amb-setter-subdesc" style="font-size: 12px; color: #949ba4; margin-top: 4px;">${isEnabled ? (isApplied ? 'Bu animasyon şu an bu alana uygulanmış.' : 'Hız ayarlayın ve uygula butonuna basın.') : 'Bu animasyon kapalı. Toggle butonuna basarak açın.'}</div>
+                        ${getAreaPreviewHTML(areaKey)}
+                        <input type="range" min="80" max="800" step="10" value="${currentDuration}" class="area-speed-slider" data-area="${areaKey}" ${!isEnabled ? 'disabled' : ''}>
+                        <div style="display: flex; gap: 8px; margin-top: 12px;">
+                            <button class="amb-modal-btn amb-modal-btn-primary apply-anim-btn" data-area="${areaKey}" style="flex: 1;" ${!isEnabled ? 'disabled' : ''}>${isApplied ? 'Uygulandı' : 'Uygula'}</button>
+                            <button class="amb-modal-btn amb-modal-btn-secondary preview-area-btn" data-area="${areaKey}" style="flex: 1;" ${!isEnabled ? 'disabled' : ''}>Önizle</button>
+                        </div>
+                    `;
+                    animDetailSettings.appendChild(areaSettings);
+                }
+            }
+            
+            // Add event listeners
+            animDetailSettings.querySelectorAll('.area-toggle-btn').forEach(toggleBtn => {
+                toggleBtn.addEventListener('click', (e) => {
+                    const areaKey = e.target.dataset.area;
+                    const cur = this.getSettings();
+                    const currentState = cur.anim[areaKey].enabled !== false;
+                    cur.anim[areaKey].enabled = !currentState;
+                    this.saveSettings(cur);
+                    this.applySettingsToCSS(cur);
+                    
+                    // Update UI
+                    const toggleDot = toggleBtn.querySelector('.amb-toggle-dot');
+                    if (cur.anim[areaKey].enabled) {
+                        toggleBtn.style.background = '#5865f2';
+                        toggleDot.style.left = '20px';
+                    } else {
+                        toggleBtn.style.background = '#4e5058';
+                        toggleDot.style.left = '2px';
+                    }
+                    
+                    // Enable/disable controls
+                    const slider = animDetailSettings.querySelector(`.area-speed-slider[data-area="${areaKey}"]`);
+                    const applyBtn = animDetailSettings.querySelector(`.apply-anim-btn[data-area="${areaKey}"]`);
+                    const previewBtn = animDetailSettings.querySelector(`.preview-area-btn[data-area="${areaKey}"]`);
+                    const subdesc = toggleBtn.parentElement.parentElement.querySelector('.amb-setter-subdesc');
+                    
+                    if (cur.anim[areaKey].enabled) {
+                        slider.disabled = false;
+                        applyBtn.disabled = false;
+                        previewBtn.disabled = false;
+                        subdesc.textContent = cur.anim[areaKey].style === style ? 'Bu animasyon şu an bu alana uygulanmış.' : 'Hız ayarlayın ve uygula butonuna basın.';
+                    } else {
+                        slider.disabled = true;
+                        applyBtn.disabled = true;
+                        previewBtn.disabled = true;
+                        subdesc.textContent = 'Bu animasyon kapalı. Toggle butonuna basarak açın.';
+                    }
+                    
+                    this.toast(`${areaLabel} animasyonu ${cur.anim[areaKey].enabled ? 'açık' : 'kapalı'}.`, "success");
+                });
+            });
+            
+            animDetailSettings.querySelectorAll('.area-speed-slider').forEach(slider => {
+                slider.addEventListener('input', (e) => {
+                    const valSpan = e.target.parentElement.querySelector('.amb-setter-val');
+                    valSpan.textContent = `${e.target.value}ms`;
+                });
+            });
+            
+            animDetailSettings.querySelectorAll('.apply-anim-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const areaKey = e.target.dataset.area;
+                    const slider = animDetailSettings.querySelector(`.area-speed-slider[data-area="${areaKey}"]`);
+                    const duration = parseInt(slider.value);
+                    
+                    const cur = this.getSettings();
+                    cur.anim[areaKey].style = style;
+                    cur.anim[areaKey].duration = duration;
+                    this.saveSettings(cur);
+                    this.applySettingsToCSS(cur);
+                    
+                    e.target.textContent = 'Uygulandı';
+                    e.target.style.background = 'linear-gradient(135deg, #3ba55c, #2d7d46)';
+                    
+                    const valSpan = slider.parentElement.querySelector('.amb-setter-val');
+                    valSpan.textContent = `${duration}ms ✓`;
+                    
+                    const desc = slider.parentElement.querySelector('.amb-setter-desc');
+                    desc.textContent = 'Bu animasyon şu an bu alana uygulanmış.';
+                    
+                    this.toast(`${label} animasyonu ${areaKey} alanına uygulandı.`, "success");
+                });
+            });
+            
+            // Add preview button functionality
+            animDetailSettings.querySelectorAll('.preview-area-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const areaKey = e.target.dataset.area;
+                    const slider = animDetailSettings.querySelector(`.area-speed-slider[data-area="${areaKey}"]`);
+                    const duration = parseInt(slider.value);
+                    
+                    // Get the correct preview element based on area
+                    let previewElement;
+                    switch(areaKey) {
+                        case 'messages':
+                            previewElement = e.target.parentElement.parentElement.querySelector('.amb-preview-message');
+                            break;
+                        case 'sidebar':
+                            previewElement = e.target.parentElement.parentElement.querySelectorAll('.amb-preview-sidebar-item');
+                            break;
+                        case 'modals':
+                            previewElement = e.target.parentElement.parentElement.querySelector('.amb-preview-modal');
+                            break;
+                        case 'toasts':
+                            previewElement = e.target.parentElement.parentElement.querySelector('.amb-preview-toast');
+                            break;
+                        default:
+                            previewElement = e.target.parentElement.parentElement.querySelector('.amb-style-preview-box');
+                    }
+                    
+                    if (style === "none") {
+                        if (Array.isArray(previewElement)) {
+                            previewElement.forEach(el => el.style.opacity = "0");
+                        } else {
+                            previewElement.style.opacity = "0";
+                        }
+                        return;
+                    }
+                    
+                    const easingMap = {
+                        "spring": "cubic-bezier(.34,1.56,.64,1)",
+                        "bounce": "cubic-bezier(.68,-0.55,.265,1.55)",
+                        "elastic": "cubic-bezier(.68,-0.6,.32,1.6)",
+                        "jelly": "cubic-bezier(.68,-0.55,.265,1.55)",
+                        "pop": "cubic-bezier(.68,-0.55,.265,1.55)",
+                        "shake": "cubic-bezier(.36,.07,.19,.97)",
+                        "fade": "cubic-bezier(.4,0,.2,1)",
+                        "slide-up": "cubic-bezier(.25,1,.5,1)",
+                        "slide-down": "cubic-bezier(.25,1,.5,1)",
+                        "slide-left": "cubic-bezier(.25,1,.5,1)",
+                        "slide-right": "cubic-bezier(.25,1,.5,1)",
+                        "scale": "cubic-bezier(.34,1.56,.64,1)",
+                        "blur": "cubic-bezier(.4,0,.2,1)",
+                        "flip": "cubic-bezier(.68,-0.55,.265,1.55)",
+                        "rotate": "cubic-bezier(.68,-0.55,.265,1.55)",
+                        "pulse": "cubic-bezier(.4,0,.6,1)",
+                        "zoom-in": "cubic-bezier(.34,1.56,.64,1)",
+                        "zoom-out": "cubic-bezier(.34,1.56,.64,1)",
+                        "slide-fade": "cubic-bezier(.25,1,.5,1)"
+                    };
+                    const easing = easingMap[style] || "cubic-bezier(.22,.68,0,1.2)";
+                    
+                    // Apply animation to preview element(s)
+                    if (Array.isArray(previewElement)) {
+                        previewElement.forEach((el, index) => {
+                            el.style.animation = "none";
+                            void el.offsetWidth;
+                            el.style.animation = `amb-${style} ${duration}ms ${easing} both`;
+                            el.style.animationDelay = `${index * 50}ms`;
+                        });
+                    } else {
+                        previewElement.style.animation = "none";
+                        void previewElement.offsetWidth;
+                        previewElement.style.animation = `amb-${style} ${duration}ms ${easing} both`;
+                    }
+                });
+            });
+            
+            // Hide all sections and show detail
+            document.querySelectorAll('.amb-content-section').forEach(el => el.classList.remove('active'));
+            animDetailSection.classList.add('active');
+        };
+        
+        backToGridBtn.addEventListener('click', () => {
+            document.querySelectorAll('.amb-content-section').forEach(el => el.classList.remove('active'));
+            document.querySelector(`.amb-section-${previousSection}`).classList.add('active');
+            currentDetailStyle = null;
+        });
+
+        // Animation Style Cards Generator
+        const createAnimStyleCard = (style, label, targetGridId) => {
+            const animDescriptions = {
+                "fade": "Yavaşça görünür",
+                "slide-up": "Aşağıdan yukarı kayarak gelir",
+                "slide-down": "Yukarıdan aşağı kayarak gelir",
+                "slide-left": "Sağdan sola kayarak gelir",
+                "slide-right": "Soldan sağa kayarak gelir",
+                "scale": "Küçükten büyüyerek görünür",
+                "blur": "Bulanıklaşarak netleşir",
+                "flip": "Dönerek görünür",
+                "spring": "Yaylanarak görünür",
+                "bounce": "Zıplayarak görünür",
+                "elastic": "Elastik şekilde görünür",
+                "rotate": "Dönerek görünür",
+                "pulse": "Nabız gibi atar",
+                "shake": "Sallanarak görünür",
+                "jelly": "Jeli gibi sallanır",
+                "zoom-in": "Uzaklaşarak görünür",
+                "zoom-out": "Yakınlaşarak görünür",
+                "slide-fade": "Kayarak ve soluklaşarak görünür",
+                "pop": "Patlayarak görünür"
+            };
+            
+            const card = document.createElement("div");
+            card.className = "amb-style-card";
+            card.innerHTML = `
+                <div class="amb-style-preview">
+                    <div class="amb-style-preview-box"></div>
+                </div>
+                <div class="amb-style-name">${label}</div>
+                <div class="amb-style-desc">${animDescriptions[style] || ""}</div>
+                <div class="amb-style-actions">
+                    <button class="amb-style-btn preview-btn" title="Önizle">▶️</button>
+                </div>
+            `;
+            
+            const previewBox = card.querySelector('.amb-style-preview-box');
+            const previewBtn = card.querySelector('.preview-btn');
+            
+            const triggerCardPreview = () => {
+                previewBox.style.animation = "none";
+                void previewBox.offsetWidth;
+                if (style === "none") {
+                    previewBox.style.opacity = "0";
+                    return;
+                }
+                const easingMap = {
+                    "spring": "cubic-bezier(.34,1.56,.64,1)",
+                    "bounce": "cubic-bezier(.68,-0.55,.265,1.55)",
+                    "elastic": "cubic-bezier(.68,-0.6,.32,1.6)",
+                    "jelly": "cubic-bezier(.68,-0.55,.265,1.55)",
+                    "pop": "cubic-bezier(.68,-0.55,.265,1.55)",
+                    "shake": "cubic-bezier(.36,.07,.19,.97)",
+                    "fade": "cubic-bezier(.4,0,.2,1)",
+                    "slide-up": "cubic-bezier(.25,1,.5,1)",
+                    "slide-down": "cubic-bezier(.25,1,.5,1)",
+                    "slide-left": "cubic-bezier(.25,1,.5,1)",
+                    "slide-right": "cubic-bezier(.25,1,.5,1)",
+                    "scale": "cubic-bezier(.34,1.56,.64,1)",
+                    "blur": "cubic-bezier(.4,0,.2,1)",
+                    "flip": "cubic-bezier(.68,-0.55,.265,1.55)",
+                    "rotate": "cubic-bezier(.68,-0.55,.265,1.55)",
+                    "pulse": "cubic-bezier(.4,0,.6,1)",
+                    "zoom-in": "cubic-bezier(.34,1.56,.64,1)",
+                    "zoom-out": "cubic-bezier(.34,1.56,.64,1)",
+                    "slide-fade": "cubic-bezier(.25,1,.5,1)"
+                };
+                const easing = easingMap[style] || "cubic-bezier(.22,.68,0,1.2)";
+                const durationMap = {
+                    "spring": 800,
+                    "bounce": 900,
+                    "elastic": 1000,
+                    "jelly": 850,
+                    "pop": 700,
+                    "shake": 600,
+                    "fade": 500,
+                    "slide-up": 600,
+                    "slide-down": 600,
+                    "slide-left": 600,
+                    "slide-right": 600,
+                    "scale": 700,
+                    "blur": 500,
+                    "flip": 800,
+                    "rotate": 900,
+                    "pulse": 800,
+                    "zoom-in": 600,
+                    "zoom-out": 600,
+                    "slide-fade": 700
+                };
+                const duration = durationMap[style] || 600;
+                previewBox.style.animation = `amb-${style} ${duration}ms ${easing} both`;
+            };
+            
+            card.addEventListener('mouseenter', triggerCardPreview);
+            previewBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                triggerCardPreview();
+            });
+            
+            // Card click to show detail
+            card.addEventListener('click', () => {
+                previousSection = activeSection;
+                showAnimDetail(style, label);
+            });
+            
+            return card;
+        };
+        
+        // Populate animation grids
+        const allAnimGrid = homeSection.querySelector('#allAnimGrid');
+        ANIM_STYLES.forEach(style => {
+            if (style !== "none") {
+                allAnimGrid.appendChild(createAnimStyleCard(style, ANIM_STYLE_LABELS[style], 'allAnimGrid'));
+            }
+        });
+        
+        // Populate other grids with relevant animations
+        const messagesAnimGrid = messagesSection.querySelector('#messagesAnimGrid');
+        ANIM_STYLES.slice(0, 10).forEach(style => {
+            if (style !== "none") {
+                messagesAnimGrid.appendChild(createAnimStyleCard(style, ANIM_STYLE_LABELS[style], 'messagesAnimGrid'));
+            }
+        });
+        
+        const modalsAnimGrid = modalsSection.querySelector('#modalsAnimGrid');
+        ANIM_STYLES.slice(0, 12).forEach(style => {
+            if (style !== "none") {
+                modalsAnimGrid.appendChild(createAnimStyleCard(style, ANIM_STYLE_LABELS[style], 'modalsAnimGrid'));
+            }
+        });
+        
+        const tooltipsAnimGrid = tooltipsSection.querySelector('#tooltipsAnimGrid');
+        ANIM_STYLES.slice(0, 8).forEach(style => {
+            if (style !== "none") {
+                tooltipsAnimGrid.appendChild(createAnimStyleCard(style, ANIM_STYLE_LABELS[style], 'tooltipsAnimGrid'));
+            }
+        });
+        
+        const menusAnimGrid = menusSection.querySelector('#menusAnimGrid');
+        ANIM_STYLES.slice(0, 8).forEach(style => {
+            if (style !== "none") {
+                menusAnimGrid.appendChild(createAnimStyleCard(style, ANIM_STYLE_LABELS[style], 'menusAnimGrid'));
+            }
+        });
+
+        // Settings Section Content
+        const glassSliders = [
+            {key:"blurStrength",   label:"Cam Bulanıklığı",         desc:"Profil kartının arkasındaki blur efekti. Daha yüksek değer daha fazla bulanıklık.",       min:0,  max:60, step:1},
+            {key:"innerBlur",      label:"İç Katman Bulanıklığı",   desc:"Profil içindeki panellerin blur değeri. Daha düşük değer daha net görünür.", min:0,  max:30, step:1},
+            {key:"panelAlpha",     label:"Arka Plan Saydamlığı",    desc:"Profil kartının arka plan saydamlığı. 0 = tam saydam, 1 = tam opak.",      min:0,  max:1,  step:0.01},
+            {key:"glowOpacity",    label:"Glow Yoğunluğu",         desc:"Profil etrafındaki ambient ışık efektinin yoğunluğu.",    min:0,  max:1,  step:0.01},
+            {key:"sheenOpacity",   label:"Parlaklık (Sheen)",       desc:"Profil üzerinde kayan parlaklık efektinin yoğunluğu.", min:0,  max:1,  step:0.01},
+            {key:"edgeAlpha",      label:"Kenar Işığı",             desc:"Profil kartının kenar çerçevesinin parlaklığı.",       min:0,  max:1,  step:0.01},
+            {key:"animationSpeed", label:"Glow Animasyon Hızı",    desc:"Glow efektinin animasyon hızı. 1x = varsayılan hız.",                min:0.1,max:3,  step:0.1},
+        ];
+
+        const mkPremiumSlider = (label, desc, min, max, step, val, onChange) => {
+            const row = document.createElement("div"); row.className = "amb-setter-row";
+            row.innerHTML = `
+                <div class="amb-setter-top">
+                    <span class="amb-setter-lbl">${label}</span>
+                    <span class="amb-setter-val">${val}</span>
+                </div>
+                <div class="amb-setter-desc">${desc}</div>
+                <input type="range" min="${min}" max="${max}" step="${step}" value="${val}">
+            `;
+            const input = row.querySelector('input[type="range"]');
+            const indicator = row.querySelector('.amb-setter-val');
+            input.addEventListener("input", () => {
+                const v = parseFloat(input.value);
+                indicator.textContent = step < 1 ? v.toFixed(2) : String(v);
+                onChange(v);
+            });
+            return row;
+        };
+
+        settingsSection.innerHTML = `
+            <h2 class="amb-section-title">Genel Ayarlar</h2>
+            <p class="amb-section-desc">Cam efektleri, glow ve diğer görsel ayarları buradan yapılandırabilirsiniz.</p>
+        `;
+        
         for (const cfg of glassSliders) {
-            glassCard.appendChild(mkSlider(cfg.label, cfg.desc, cfg.min, cfg.max, cfg.step, s[cfg.key], (v) => {
+            settingsSection.appendChild(mkPremiumSlider(cfg.label, cfg.desc, cfg.min, cfg.max, cfg.step, s[cfg.key], (v) => {
                 const cur = this.getSettings(); cur[cfg.key] = v; this.saveSettings(cur); this.applySettingsToCSS(cur);
             }));
         }
-        glassCard.appendChild(document.createElement("hr")).style.cssText = "border: 0; border-top: 1px solid #3f4147; margin: 4px 0;";
-        glassCard.appendChild(mkToggle('"Yazıyor..." Animasyonunu Gizle','Birileri mesaj yazarken ortaya çıkan baloncuk uyarısını kapatır', s.hideTyping, (v) => {
-            const cur = this.getSettings(); cur.hideTyping = v; this.saveSettings(cur); this.applySettingsToCSS(cur);
-        }));
-        wrap.appendChild(glassCard);
 
-        // ── Animation section ──
-        wrap.appendChild(secHead("Arayüz Alan Animasyonları", "🎬"));
-        
-        const animGrid = document.createElement("div");
-        animGrid.style.cssText = "display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px;";
-
-        for (const [areaKey, areaMeta] of Object.entries(ANIM_AREAS)) {
-            const ac = s.anim[areaKey] || DEFAULT_SETTINGS.anim[areaKey];
-            const card = document.createElement("div");
-            card.classList.add("amb-card");
-
-            const head = document.createElement("div");
-            head.style.cssText = "display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.04); padding-bottom: 8px;";
-            const title = document.createElement("span");
-            title.style.cssText = "font-size: 14px; font-weight: 700; color: #f2f3f5;"; title.textContent = areaMeta.label;
-
-            const body = document.createElement("div");
-            body.style.cssText = "display: flex; flex-direction: column; gap: 10px; margin-top: 4px;";
-
-            const enBtn = document.createElement("button"); let enState = ac.enabled;
-            const renderEn = () => {
-                enBtn.style.cssText = `width: 34px; height: 18px; border: 0; border-radius: 9px; cursor: pointer; background: ${enState ? "#248046" : "#4e5058"}; transition: background .15s ease; position: relative; flex-shrink: 0;`;
-                enBtn.innerHTML = `<span style="position: absolute; top: 2px; left: ${enState ? "18px" : "2px"}; width: 14px; height: 14px; border-radius: 50%; background: #fff; transition: left .15s cubic-bezier(0.25, 1, 0.5, 1); display: block;"></span>`;
-                body.style.opacity = enState ? "1" : "0.35";
-                body.style.pointerEvents = enState ? "auto" : "none";
-            };
-            enBtn.addEventListener("click", () => {
-                enState = !enState;
-                const cur = this.getSettings(); cur.anim[areaKey].enabled = enState;
-                this.saveSettings(cur); this.applySettingsToCSS(cur); renderEn();
-            });
-
-            body.appendChild(mkSelect("Geçiş Efekti",
-                ANIM_STYLES.map(k => ({value:k, label:ANIM_STYLE_LABELS[k]})),
-                ac.style,
-                (v) => { const cur=this.getSettings(); cur.anim[areaKey].style=v; this.saveSettings(cur); this.applySettingsToCSS(cur); }
-            ));
-            body.appendChild(mkSlider("Süre (ms)", "Hareket hızı", 80, 800, 10, ac.duration, (v)=>{
-                const cur=this.getSettings(); cur.anim[areaKey].duration=v; this.saveSettings(cur); this.applySettingsToCSS(cur);
-            }));
-
-            head.append(title, enBtn); card.append(head, body); renderEn(); animGrid.appendChild(card);
-        }
-        wrap.appendChild(animGrid);
-
-        // Reset Button Action
+        // Sıfırlama Butonu
         const resetBtn = document.createElement("button");
-        resetBtn.textContent = "Fabrika Ayarlarına Dön";
-        resetBtn.style.cssText = "margin-top: 10px; padding: 10px 18px; border: 1px solid #1e1f22; border-radius: 6px; background: #4e5058; color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; align-self: flex-start; transition: background .15s ease;";
-        resetBtn.addEventListener("mouseenter", () => resetBtn.style.background = "#da373c");
-        resetBtn.addEventListener("mouseleave", () => resetBtn.style.background = "#4e5058");
+        resetBtn.className = "amb-btn-reset"; resetBtn.textContent = "Varsayılana Sıfırla";
         resetBtn.addEventListener("click", () => {
             this.saveSettings(JSON.parse(JSON.stringify(DEFAULT_SETTINGS)));
             this.applySettingsToCSS(this.getSettings());
-            this.toast("Ayarlar başarıyla sıfırlandı.", "success");
-            const p = wrap.parentElement; if (p) { wrap.remove(); p.appendChild(this.getSettingsPanel()); }
+            this.toast("Eklenti ayarları fabrika ayarlarına döndürüldü.", "success");
+            const parent = wrap.parentElement;
+            if (parent) { wrap.remove(); parent.appendChild(this.getSettingsPanel()); }
         });
-        wrap.appendChild(resetBtn);
-        return wrap;
+        settingsSection.appendChild(resetBtn);
+
+        return document.createElement("div"); // Return empty div for BetterDiscord
     }
 
     applySettingsToCSS(s) {
@@ -326,51 +1028,60 @@ module.exports = class AmbientProfilePopouts {
     }
 
     stop() {
-        BdApi.DOM.removeStyle("AmbientProfileCSS");
-        BdApi.DOM.removeStyle("AmbientAnimCSS");
-        BdApi.DOM.removeStyle("AmbientSettingsScrollbar");
-        document.removeEventListener("click", this.handleShiftClickCopy, true);
-        if (this.observer) this.observer.disconnect();
-        if (this.updateInterval) clearInterval(this.updateInterval);
-        document.querySelectorAll(".ambient-profile-container,.ambient-profile-tools,.ambient-profile-note,.ambient-link-tools,.ambient-code-copy,.ambient-profile-tags").forEach(el=>el.remove());
-        document.querySelectorAll(".ambient-enhanced-link").forEach(el=>{el.classList.remove("ambient-enhanced-link");el.removeAttribute("data-ambient-domain");el.removeAttribute("data-ambient-risk");});
-        document.querySelectorAll(".ambient-enhanced-code").forEach(el=>el.classList.remove("ambient-enhanced-code"));
-        document.querySelectorAll(".ambient-spotify-card").forEach(el=>el.classList.remove("ambient-spotify-card"));
-        document.querySelectorAll(".ambient-profile-root").forEach(el=>el.classList.remove("ambient-profile-root"));
-        document.querySelectorAll(".amb-done").forEach(el=>el.classList.remove("amb-done"));
-        for (const k of Object.keys(ANIM_AREAS))
-            document.querySelectorAll(`.ambient-anim-${k}`).forEach(el=>el.classList.remove(`ambient-anim-${k}`));
+        allStop: {
+            BdApi.DOM.removeStyle("AmbientProfileCSS");
+            BdApi.DOM.removeStyle("AmbientAnimCSS");
+            document.removeEventListener("click", this.handleShiftClickCopy, true);
+            if (this.observer) this.observer.disconnect();
+            if (this.updateInterval) clearInterval(this.updateInterval);
+            document.querySelectorAll(".ambient-profile-container,.ambient-profile-tools,.ambient-profile-note,.ambient-link-tools,.ambient-code-copy,.ambient-profile-tags").forEach(el=>el.remove());
+            document.querySelectorAll(".ambient-enhanced-link").forEach(el=>{el.classList.remove("ambient-enhanced-link");el.removeAttribute("data-ambient-domain");el.removeAttribute("data-ambient-risk");});
+            document.querySelectorAll(".ambient-enhanced-code").forEach(el=>el.classList.remove("ambient-enhanced-code"));
+            document.querySelectorAll(".ambient-spotify-card").forEach(el=>el.classList.remove("ambient-spotify-card"));
+            document.querySelectorAll(".ambient-profile-root").forEach(el=>el.classList.remove("ambient-profile-root"));
+            document.querySelectorAll(".amb-done").forEach(el=>el.classList.remove("amb-done"));
+            for (const k of Object.keys(ANIM_AREAS))
+                document.querySelectorAll(`.ambient-anim-${k}`).forEach(el=>el.classList.remove(`ambient-anim-${k}`));
+        }
     }
 
-    // ─── BetterAnimations Style Fluid System ─────────────────────────────────────
+    // ─── Animation system ────────────────────────────────────────────────────────
 
     injectAnimCSS(s) {
-        // Donanım hızlandırma (will-change, transform3d, backface-visibility) entegre edildi.
-        // Cubic-bezier eğrileri BetterAnimations standartlarına (0.215, 0.610, 0.355, 1.000) çekildi.
         const rules = [`
-        @keyframes amb-fade        { from { opacity: 0; filter: blur(3px); } to { opacity: 1; filter: blur(0); } }
-        @keyframes amb-slide-up    { from { opacity: 0; transform: translate3d(0, 18px, 0); } to { opacity: 1; transform: translate3d(0, 0, 0); } }
-        @keyframes amb-slide-down  { from { opacity: 0; transform: translate3d(0, -18px, 0); } to { opacity: 1; transform: translate3d(0, 0, 0); } }
-        @keyframes amb-slide-left  { from { opacity: 0; transform: translate3d(24px, 0, 0); } to { opacity: 1; transform: translate3d(0, 0, 0); } }
-        @keyframes amb-slide-right { from { opacity: 0; transform: translate3d(-24px, 0, 0); } to { opacity: 1; transform: translate3d(0, 0, 0); } }
-        @keyframes amb-scale       { from { opacity: 0; transform: scale3d(0.93, 0.93, 1); } to { opacity: 1; transform: scale3d(1, 1, 1); } }
-        @keyframes amb-blur        { from { opacity: 0; filter: blur(14px); transform: scale3d(0.98, 0.98, 1); } to { opacity: 1; filter: blur(0); transform: scale3d(1, 1, 1); } }
-        @keyframes amb-flip        { from { opacity: 0; transform: perspective(500px) rotateX(12deg); } to { opacity: 1; transform: perspective(500px) rotateX(0); } }
-        @keyframes amb-spring      { 0% { opacity: 0; transform: scale3d(0.85, 0.85, 1); } 55% { opacity: 1; transform: scale3d(1.03, 1.03, 1); } 78% { transform: scale3d(0.98, 0.98, 1); } 100% { transform: scale3d(1, 1, 1); } }
+        @keyframes amb-fade        { from{opacity:0} to{opacity:1} }
+        @keyframes amb-slide-up    { from{opacity:0;transform:translateY(24px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes amb-slide-down  { from{opacity:0;transform:translateY(-24px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes amb-slide-left  { from{opacity:0;transform:translateX(30px)} to{opacity:1;transform:translateX(0)} }
+        @keyframes amb-slide-right { from{opacity:0;transform:translateX(-30px)} to{opacity:1;transform:translateX(0)} }
+        @keyframes amb-scale       { from{opacity:0;transform:scale(0.85)} to{opacity:1;transform:scale(1)} }
+        @keyframes amb-blur        { from{opacity:0;filter:blur(12px)} to{opacity:1;filter:blur(0)} }
+        @keyframes amb-flip        { from{opacity:0;transform:perspective(600px) rotateX(12deg)} to{opacity:1;transform:perspective(600px) rotateX(0)} }
+        @keyframes amb-spring      { 0%{opacity:0;transform:scale(0.75)} 50%{opacity:1;transform:scale(1.08)} 75%{transform:scale(0.98)} 100%{transform:scale(1)} }
+        @keyframes amb-bounce      { 0%{opacity:0;transform:translateY(40px)} 25%{opacity:1;transform:translateY(-15px)} 50%{transform:translateY(8px)} 75%{transform:translateY(-4px)} 100%{transform:translateY(0)} }
+        @keyframes amb-elastic     { 0%{opacity:0;transform:scale(0)} 25%{opacity:1;transform:scale(1.3)} 50%{transform:scale(0.8)} 75%{transform:scale(1.1)} 100%{transform:scale(1)} }
+        @keyframes amb-rotate      { from{opacity:0;transform:rotate(-120deg) scale(0.5)} to{opacity:1;transform:rotate(0) scale(1)} }
+        @keyframes amb-pulse       { 0%{opacity:0;transform:scale(0.9)} 50%{opacity:1;transform:scale(1.05)} 100%{opacity:1;transform:scale(1)} }
+        @keyframes amb-shake       { 0%,100%{opacity:1;transform:translateX(0)} 12.5%,37.5%,62.5%,87.5%{transform:translateX(-5px)} 25%,50%,75%{transform:translateX(5px)} }
+        @keyframes amb-jelly       { 0%{opacity:0;transform:scale(1,1)} 25%{transform:scale(1.3,0.7)} 37.5%{transform:scale(0.7,1.3)} 50%{transform:scale(1.2,0.8)} 62.5%{transform:scale(0.9,1.1)} 75%{transform:scale(1.05,0.95)} 100%{transform:scale(1,1)} }
+        @keyframes amb-zoom-in     { from{opacity:0;transform:scale(0.2)} to{opacity:1;transform:scale(1)} }
+        @keyframes amb-zoom-out    { from{opacity:0;transform:scale(1.8)} to{opacity:1;transform:scale(1)} }
+        @keyframes amb-slide-fade  { from{opacity:0;transform:translateY(30px) scale(0.9)} to{opacity:1;transform:translateY(0) scale(1)} }
+        @keyframes amb-pop         { 0%{opacity:0;transform:scale(0.4)} 50%{opacity:1;transform:scale(1.15)} 100%{transform:scale(1)} }
         `];
 
         for (const [areaKey, cfg] of Object.entries(s.anim)) {
             if (!cfg.enabled || cfg.style === "none") continue;
-            // Yay efekti hariç tüm hareketlere ultra smooth ipeksi bitiş eğrisi (Apple/BetterAnimations mantığı)
-            const easing = cfg.style === "spring" ? "cubic-bezier(0.34, 1.56, 0.64, 1)" : "cubic-bezier(0.16, 1, 0.3, 1)";
-            rules.push(`
-                .${areaKey === "messages" ? "ambient-anim-messages" : `ambient-anim-${areaKey}`} {
-                    animation: amb-${cfg.style} ${cfg.duration}ms ${easing} both;
-                    will-change: transform, opacity, filter;
-                    backface-visibility: hidden;
-                    transform-style: preserve-3d;
-                }
-            `);
+            const easingMap = {
+                "spring": "cubic-bezier(.34,1.56,.64,1)",
+                "bounce": "cubic-bezier(.68,-0.55,.265,1.55)",
+                "elastic": "cubic-bezier(.68,-0.6,.32,1.6)",
+                "jelly": "cubic-bezier(.68,-0.55,.265,1.55)",
+                "pop": "cubic-bezier(.68,-0.55,.265,1.55)",
+                "shake": "cubic-bezier(.36,.07,.19,.97)"
+            };
+            const easing = easingMap[cfg.style] || "cubic-bezier(.22,.68,0,1.2)";
+            rules.push(`.ambient-anim-${areaKey}{animation:amb-${cfg.style} ${cfg.duration}ms ${easing} both;will-change:transform,opacity;}`);
         }
 
         BdApi.DOM.addStyle("AmbientAnimCSS", rules.join("\n"));
@@ -394,7 +1105,7 @@ module.exports = class AmbientProfilePopouts {
             el.addEventListener("animationend", ()=>{el.classList.remove(cls);el.classList.add("amb-done");}, {once:true});
         } else {
             el.classList.remove(cls);
-            void el.offsetWidth; // Reflow forcing
+            void el.offsetWidth;
             el.classList.add(cls);
             el.addEventListener("animationend", ()=>el.classList.remove(cls), {once:true});
         }
@@ -452,7 +1163,13 @@ module.exports = class AmbientProfilePopouts {
     injectCSS(s=DEFAULT_SETTINGS){
         const bp=`${s.blurStrength}px`, ibp=`${s.innerBlur}px`;
         const sp=s.animationSpeed;
-        const typingCSS=s.hideTyping?`[class*="typing_"],[class*="typingDots_"],[class*="typingUsers_"]{display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important;}`:"";
+        
+        // Geliştirilmiş 'hideTyping' kuralı: Hem yazı alanlarını hem de profil avatarı üstündeki dot maskelerini uçurur.
+        const typingCSS=s.hideTyping?`
+            [class*="typing_"],[class*="typingDots_"],[class*="typingUsers_"]{display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important;}
+            [class*="avatar-"] [class*="dots-"], [class*="member-"] [class*="dots-"], foreignObject[mask*="typing"], [class*="typingDots-"] { display: none !important; }
+            mask[id*="typing"] foreignObject { mask: none !important; }
+        `:"";
 
         BdApi.DOM.addStyle("AmbientProfileCSS",`
         .ambient-profile-root{
