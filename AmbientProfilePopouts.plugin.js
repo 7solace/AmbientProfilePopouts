@@ -1,8 +1,8 @@
 /**
  * @name AmbientProfilePopouts
  * @author s7lace
- * @version 1.5.3
- * @description Adds ambient blur and animation effects to profile popouts, modals, sidebars, and more. Highly customizable with per-area animation styles and speeds. 
+ * @version 1.5.4
+ * @description Adds adaptive ambient glow, profile tools, and per-area animation system to Discord with a premium live-preview settings dashboard. animasyon stilleri ve hızları için canlı önizleme sistemi içeren gelişmiş bir profil kartı eklentisi.
  * @updateUrl https://raw.githubusercontent.com/7solace/AmbientProfilePopouts/main/AmbientProfilePopouts.plugin.js
  * @downloadUrl https://raw.githubusercontent.com/7solace/AmbientProfilePopouts/main/AmbientProfilePopouts.plugin.js
  */
@@ -67,7 +67,8 @@ const DEFAULT_SETTINGS = {
     sheenOpacity:   0.62,
     edgeAlpha:      0.52,
     animationSpeed: 1.0,
-    hideTyping:     true,
+    hideTypingIndicator: false,
+    invisibleTyping: false,
     anim: {
         messages:     { style:"slide-up",    duration:320, enabled:true },
         channelSwitch:{ style:"fade",        duration:260, enabled:true },
@@ -231,12 +232,21 @@ module.exports = class AmbientProfilePopouts {
             .amb-sidebar::-webkit-scrollbar-thumb { background: #1a1b1e; border-radius: 4px; }
             
             .amb-sidebar-item {
-                padding: 10px 12px; border-radius: 4px; cursor: pointer;
-                font-size: 14px; font-weight: 500; color: #b5bac1;
-                transition: all 0.15s ease; display: flex; align-items: center; gap: 12px;
+                padding: 12px 16px; border-radius: 8px; cursor: pointer;
+                font-size: 14px; font-weight: 600; color: #b5bac1;
+                transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); display: flex; align-items: center; gap: 12px;
+                margin-bottom: 4px;
             }
-            .amb-sidebar-item:hover { background: #3f4147; color: #dbdee1; }
-            .amb-sidebar-item.active { background: #5865f2; color: #fff; }
+            .amb-sidebar-item:hover { 
+                background: linear-gradient(135deg, #3f4147 0%, #36373c 100%); 
+                color: #dbdee1;
+                transform: translateX(4px);
+            }
+            .amb-sidebar-item.active { 
+                background: linear-gradient(135deg, #5865f2 0%, #4752c4 100%); 
+                color: #fff;
+                box-shadow: 0 4px 12px rgba(88, 101, 242, 0.3);
+            }
             .amb-sidebar-divider { height: 1px; background: rgba(255,255,255,0.05); margin: 8px 0; }
             
             /* Main Content */
@@ -256,9 +266,16 @@ module.exports = class AmbientProfilePopouts {
             .amb-content-section.active { display: block; }
             
             .amb-section-title {
-                font-size: 20px; font-weight: 600; color: #fff; margin-bottom: 8px;
+                font-size: 24px; font-weight: 700; color: #fff; margin-bottom: 8px;
+                text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
             }
-            .amb-section-desc { font-size: 14px; color: #b5bac1; margin-bottom: 20px; line-height: 1.4; }
+            .amb-section-desc { 
+                font-size: 14px; color: #b5bac1; margin-bottom: 24px; line-height: 1.5;
+                padding: 12px 16px;
+                background: linear-gradient(135deg, #2b2d31 0%, #232428 100%);
+                border-radius: 8px;
+                border: 1px solid #1f2023;
+            }
             
             /* Animation Grid */
             .amb-anim-grid {
@@ -270,20 +287,27 @@ module.exports = class AmbientProfilePopouts {
             
             /* Animation Style Cards */
             .amb-style-card {
-                background: #2b2d31; 
-                border: 1px solid #1f2023; border-radius: 8px; 
+                background: linear-gradient(135deg, #2b2d31 0%, #232428 100%); 
+                border: 1px solid #1f2023; border-radius: 12px; 
                 padding: 20px; display: flex; flex-direction: column; gap: 12px; 
-                transition: all 0.15s ease; cursor: pointer;
+                transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
             }
             .amb-style-card:hover { 
                 border-color: #5865f2; 
+                transform: translateY(-2px);
+                box-shadow: 0 4px 16px rgba(88, 101, 242, 0.2);
             }
-            .amb-style-card.selected { border-color: #5865f2; background: #3f4147; }
+            .amb-style-card.selected { 
+                border-color: #5865f2; 
+                background: linear-gradient(135deg, #3f4147 0%, #36373c 100%);
+                box-shadow: 0 0 0 2px rgba(88, 101, 242, 0.3), 0 4px 16px rgba(88, 101, 242, 0.2);
+            }
             
             .amb-style-preview {
                 height: 140px;
                 background: linear-gradient(135deg, #1e1f22 0%, #2b2d31 100%); 
-                border-radius: 8px; display: flex; align-items: center; justify-content: center;
+                border-radius: 12px; display: flex; align-items: center; justify-content: center;
                 border: 1px solid #1f2023; perspective: 600px;
                 overflow: hidden;
                 position: relative;
@@ -295,7 +319,7 @@ module.exports = class AmbientProfilePopouts {
                 left: 0;
                 right: 0;
                 bottom: 0;
-                background: radial-gradient(circle at 50% 50%, rgba(88,101,242,0.1) 0%, transparent 70%);
+                background: radial-gradient(circle at 50% 50%, rgba(88,101,242,0.15) 0%, transparent 70%);
                 pointer-events: none;
             }
             .amb-style-preview-box {
@@ -306,7 +330,7 @@ module.exports = class AmbientProfilePopouts {
             
             .amb-style-name { font-size: 14px; font-weight: 600; color: #dbdee1; text-align: center; }
             .amb-style-desc { font-size: 12px; color: #949ba4; text-align: center; margin-top: 4px; line-height: 1.3; }
-            .amb-style-actions { display: flex; gap: 8px; justify-content: center; }
+            .amb-style-actions { display: flex; gap: 8px; justify-content: center; margin-top: 4px; }
             .amb-style-btn {
                 width: 32px; height: 32px; border: 0; border-radius: 4px; cursor: pointer;
                 background: #3f4147; color: #b5bac1;
@@ -318,9 +342,15 @@ module.exports = class AmbientProfilePopouts {
             /* Settings Elements */
             .amb-setter-row { 
                 display: flex; flex-direction: column; gap: 8px; 
-                background: #2b2d31; 
-                padding: 16px; border-radius: 8px; border: 1px solid #1f2023;
+                background: linear-gradient(135deg, #2b2d31 0%, #232428 100%); 
+                padding: 20px; border-radius: 12px; border: 1px solid #1f2023;
                 margin-bottom: 12px;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+                transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+            .amb-setter-row:hover {
+                border-color: #3f4147;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
             }
             .amb-setter-top { display: flex; justify-content: space-between; align-items: center; }
             .amb-setter-lbl { font-size: 14px; font-weight: 600; color: #dbdee1; }
@@ -329,44 +359,62 @@ module.exports = class AmbientProfilePopouts {
             
             /* Modal Buttons (reused for detail section) */
             .amb-modal-btn {
-                padding: 10px 16px; border: 0; border-radius: 4px;
-                font-size: 14px; font-weight: 500; cursor: pointer;
-                transition: all 0.15s ease;
+                padding: 12px 20px; border: 0; border-radius: 8px;
+                font-size: 14px; font-weight: 600; cursor: pointer;
+                transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
             }
             .amb-modal-btn-primary {
-                background: #5865f2;
+                background: linear-gradient(135deg, #5865f2 0%, #4752c4 100%);
                 color: #fff;
             }
-            .amb-modal-btn-primary:hover { background: #4752c4; }
-            .amb-modal-btn-secondary {
-                background: #4e5058; color: #dbdee1;
+            .amb-modal-btn-primary:hover { 
+                background: linear-gradient(135deg, #4752c4 0%, #3c45a0 100%);
+                transform: translateY(-1px);
+                box-shadow: 0 4px 12px rgba(88, 101, 242, 0.3);
             }
-            .amb-modal-btn-secondary:hover { background: #6d6f78; }
+            .amb-modal-btn-secondary {
+                background: linear-gradient(135deg, #4e5058 0%, #3f4147 100%);
+                color: #dbdee1;
+            }
+            .amb-modal-btn-secondary:hover { 
+                background: linear-gradient(135deg, #6d6f78 0%, #5f6166 100%);
+                transform: translateY(-1px);
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            }
             
             .amb-settings-panel input[type="range"] {
-                width: 100%; height: 6px; -webkit-appearance: none; 
+                width: 100%; height: 8px; -webkit-appearance: none; 
                 background: linear-gradient(90deg, #4e5058 0%, #5865f2 100%); 
-                border-radius: 3px; outline: none; margin-top: 6px; cursor: pointer;
+                border-radius: 4px; outline: none; margin-top: 8px; cursor: pointer;
+                box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
             }
             .amb-settings-panel input[type="range"]::-webkit-slider-thumb {
-                -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; 
+                -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%; 
                 background: linear-gradient(135deg, #5865f2, #7289da); 
-                cursor: pointer; transition: all 0.2s ease; box-shadow: 0 2px 8px rgba(88,101,242,0.4);
+                cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); 
+                box-shadow: 0 2px 8px rgba(88, 101, 242, 0.4), 0 0 0 3px rgba(88, 101, 242, 0.1);
             }
-            .amb-settings-panel input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.1); }
+            .amb-settings-panel input[type="range"]::-webkit-slider-thumb:hover { 
+                transform: scale(1.15);
+                box-shadow: 0 4px 12px rgba(88, 101, 242, 0.5), 0 0 0 4px rgba(88, 101, 242, 0.2);
+            }
             
             .amb-toggle-row { 
                 display: flex; justify-content: space-between; align-items: center; 
-                background: #2b2d31; 
-                padding: 16px; border-radius: 8px; border: 1px solid #1f2023;
+                background: linear-gradient(135deg, #2b2d31 0%, #232428 100%); 
+                padding: 16px; border-radius: 12px; border: 1px solid #1f2023;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
             }
             .amb-toggle-btn {
-                width: 44px; height: 24px; border: 0; border-radius: 12px; cursor: pointer; position: relative; 
-                transition: all 0.2s ease; background: #4e5058;
+                width: 48px; height: 26px; border: 0; border-radius: 13px; cursor: pointer; position: relative; 
+                transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); background: #4e5058;
+                box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
             }
             .amb-toggle-dot {
-                position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; 
-                background: #fff; transition: all 0.2s ease; box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+                position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; 
+                background: #fff; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); 
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
             }
             
             .amb-select-el {
@@ -418,6 +466,8 @@ module.exports = class AmbientProfilePopouts {
                 document.querySelector(`.amb-section-${item.id}`).classList.add('active');
                 activeSection = item.id;
                 previousSection = item.id;
+                // Reset scroll position
+                mainContent.scrollTop = 0;
             });
             sidebar.appendChild(btn);
         });
@@ -771,12 +821,16 @@ module.exports = class AmbientProfilePopouts {
             // Hide all sections and show detail
             document.querySelectorAll('.amb-content-section').forEach(el => el.classList.remove('active'));
             animDetailSection.classList.add('active');
+            // Reset scroll position
+            mainContent.scrollTop = 0;
         };
         
         backToGridBtn.addEventListener('click', () => {
             document.querySelectorAll('.amb-content-section').forEach(el => el.classList.remove('active'));
             document.querySelector(`.amb-section-${previousSection}`).classList.add('active');
             currentDetailStyle = null;
+            // Reset scroll position
+            mainContent.scrollTop = 0;
         });
 
         // Animation Style Cards Generator
@@ -967,6 +1021,74 @@ module.exports = class AmbientProfilePopouts {
             }));
         }
 
+        // ─── Typing Ayarları Bölümü ───────────────────────────────────────────────
+
+        const mkTypingToggle = (labelText, descText, settingKey, onChangeCb) => {
+            const row = document.createElement("div");
+            row.className = "amb-setter-row";
+            row.innerHTML = `
+                <div class="amb-setter-top" style="align-items:flex-start;">
+                    <div style="flex:1;">
+                        <span class="amb-setter-lbl">${labelText}</span>
+                        <div class="amb-setter-desc" style="margin-top:6px;">${descText}</div>
+                    </div>
+                    <button class="amb-toggle-btn" type="button" style="flex-shrink:0;margin-left:16px;">
+                        <span class="amb-toggle-dot"></span>
+                    </button>
+                </div>
+                <div class="amb-setter-subdesc" style="font-size:12px;color:#949ba4;margin-top:6px;"></div>
+            `;
+            const btn = row.querySelector('.amb-toggle-btn');
+            const dot = row.querySelector('.amb-toggle-dot');
+            const status = row.querySelector('.amb-setter-subdesc');
+            dot.style.transition = "left 0.2s cubic-bezier(0.4,0,0.2,1)";
+            let state = this.getSettings()[settingKey] || false;
+
+            const updateUI = () => {
+                btn.style.background = state
+                    ? "linear-gradient(135deg,#5865f2 0%,#4752c4 100%)"
+                    : "linear-gradient(135deg,#4e5058 0%,#3f4147 100%)";
+                dot.style.left = state ? "25px" : "3px";
+                status.textContent = state ? "✅ Aktif" : "⭕ Kapalı";
+            };
+            updateUI();
+
+            btn.addEventListener("click", () => {
+                state = !state;
+                updateUI();
+                const cur = this.getSettings();
+                cur[settingKey] = state;
+                this.saveSettings(cur);
+                if (onChangeCb) onChangeCb(state, cur);
+            });
+            return row;
+        };
+
+        // Toggle 1: Yazdığını başkalarından gizle (InvisibleTyping)
+        const invisTypingRow = mkTypingToggle(
+            "🫥 Yazdığını Gizle (Invisible Typing)",
+            "Yazarken Discord'un sunucuya <b>\u0022X yaz\u0131yor...\u0022</b> sinyali göndermesini engeller. Sadece <b>senin</b> yazma durumun gizlenir; başkalarının yazıyor göstergesi etkilenmez.",
+            "invisibleTyping",
+            (state, cur) => {
+                this.applySettingsToCSS(cur);
+                this.patchInvisibleTyping();
+                this.toast(state ? "Artık yazdığın gizleniyor 🫥" : "Yazıyor göstergesi tekrar aktif.", "success");
+            }
+        );
+        settingsSection.appendChild(invisTypingRow);
+
+        // Toggle 2: Başkalarının yazıyor göstergesini gizle (CSS)
+        const hideTypingRow = mkTypingToggle(
+            "🙈 Yazıyor Göstergelerini Gizle",
+            "Başkalarının <b>&quot;yazıyor...&quot;</b> yazısını ve simgesini Discord arayüzünde gizler. Chat altı yazı, member listesi ve DM listesindeki tüm yazıyor göstergeleri kaybolur.",
+            "hideTypingIndicator",
+            (state, cur) => {
+                this.applySettingsToCSS(cur);
+                this.toast(state ? "Yazıyor göstergeleri gizlendi 🙈" : "Yazıyor göstergeleri görünür 👁️", "success");
+            }
+        );
+        settingsSection.appendChild(hideTypingRow);
+
         // Sıfırlama Butonu
         const resetBtn = document.createElement("button");
         resetBtn.className = "amb-btn-reset"; resetBtn.textContent = "Varsayılana Sıfırla";
@@ -991,6 +1113,30 @@ module.exports = class AmbientProfilePopouts {
 
     // ─── Lifecycle ───────────────────────────────────────────────────────────────
 
+    // ─── Invisible Typing (Yazdığını Gizle) ─────────────────────────────────────
+
+    patchInvisibleTyping() {
+        // Önceki patch varsa temizle
+        if (this._typingPatch) { this._typingPatch(); this._typingPatch = null; }
+
+        const s = this.getSettings();
+        if (!s.invisibleTyping) return; // kapalıysa patch etme
+
+        try {
+            const TypingModule = BdApi.Webpack.getByKeys("startTyping");
+            if (!TypingModule) {
+                console.warn(`${PLUGIN_NAME}: TypingModule bulunamadı, invisibleTyping çalışmıyor.`);
+                return;
+            }
+            const original = TypingModule.startTyping.bind(TypingModule);
+            TypingModule.startTyping = function() { /* gizlendi — hiçbir şey gönderilmez */ };
+            this._typingPatch = () => { TypingModule.startTyping = original; };
+        } catch(err) {
+            console.error(`${PLUGIN_NAME}: patchInvisibleTyping hata:`, err);
+        }
+    }
+
+
     start() {
         try {
             this.colorRefreshTimers = new WeakMap();
@@ -1001,6 +1147,7 @@ module.exports = class AmbientProfilePopouts {
             const s = this.getSettings();
             this.injectCSS(s);
             this.injectAnimCSS(s);
+            this.patchInvisibleTyping();
             this.scanExistingProfiles();
             this.scanExistingMessageEnhancements();
 
@@ -1042,6 +1189,8 @@ module.exports = class AmbientProfilePopouts {
             document.querySelectorAll(".amb-done").forEach(el=>el.classList.remove("amb-done"));
             for (const k of Object.keys(ANIM_AREAS))
                 document.querySelectorAll(`.ambient-anim-${k}`).forEach(el=>el.classList.remove(`ambient-anim-${k}`));
+            // Invisible typing patch'i geri al
+            if (this._typingPatch) { this._typingPatch(); this._typingPatch = null; }
         }
     }
 
@@ -1080,7 +1229,32 @@ module.exports = class AmbientProfilePopouts {
                 "pop": "cubic-bezier(.68,-0.55,.265,1.55)",
                 "shake": "cubic-bezier(.36,.07,.19,.97)"
             };
-            const easing = easingMap[cfg.style] || "cubic-bezier(.22,.68,0,1.2)";
+            // Messages için özel smooth easing
+            let easing = easingMap[cfg.style] || "cubic-bezier(.22,.68,0,1.2)";
+            if (areaKey === "messages") {
+                const messageEasingMap = {
+                    "spring": "cubic-bezier(.25,1,.5,1)",
+                    "bounce": "cubic-bezier(.34,1.56,.64,1)",
+                    "elastic": "cubic-bezier(.5,0,.5,1)",
+                    "jelly": "cubic-bezier(.34,1.56,.64,1)",
+                    "pop": "cubic-bezier(.34,1.56,.64,1)",
+                    "shake": "cubic-bezier(.4,0,.6,1)",
+                    "fade": "cubic-bezier(.4,0,.2,1)",
+                    "slide-up": "cubic-bezier(.25,1,.5,1)",
+                    "slide-down": "cubic-bezier(.25,1,.5,1)",
+                    "slide-left": "cubic-bezier(.25,1,.5,1)",
+                    "slide-right": "cubic-bezier(.25,1,.5,1)",
+                    "scale": "cubic-bezier(.34,1.56,.64,1)",
+                    "blur": "cubic-bezier(.4,0,.2,1)",
+                    "flip": "cubic-bezier(.34,1.56,.64,1)",
+                    "rotate": "cubic-bezier(.34,1.56,.64,1)",
+                    "pulse": "cubic-bezier(.4,0,.6,1)",
+                    "zoom-in": "cubic-bezier(.34,1.56,.64,1)",
+                    "zoom-out": "cubic-bezier(.34,1.56,.64,1)",
+                    "slide-fade": "cubic-bezier(.25,1,.5,1)"
+                };
+                easing = messageEasingMap[cfg.style] || "cubic-bezier(.25,1,.5,1)";
+            }
             rules.push(`.ambient-anim-${areaKey}{animation:amb-${cfg.style} ${cfg.duration}ms ${easing} both;will-change:transform,opacity;}`);
         }
 
@@ -1164,14 +1338,22 @@ module.exports = class AmbientProfilePopouts {
         const bp=`${s.blurStrength}px`, ibp=`${s.innerBlur}px`;
         const sp=s.animationSpeed;
         
-        // Geliştirilmiş 'hideTyping' kuralı: Hem yazı alanlarını hem de profil avatarı üstündeki dot maskelerini uçurur.
-        const typingCSS=s.hideTyping?`
-            [class*="typing_"],[class*="typingDots_"],[class*="typingUsers_"]{display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important;}
-            [class*="avatar-"] [class*="dots-"], [class*="member-"] [class*="dots-"], foreignObject[mask*="typing"], [class*="typingDots-"] { display: none !important; }
-            mask[id*="typing"] foreignObject { mask: none !important; }
+        // hideTypingIndicator CSS — sadece "typing" içeren class'ları hedef alır.
+        // "dots", "avatar", "svg foreignObject" gibi geniş seçiciler KULLANILMAZ
+        // çünkü Discord bu isimleri profil fotoğrafı ve sunucu simgelerinde de kullanır.
+        const typingCSS=s.hideTypingIndicator?`
+            /* ── Chat alt alanı: "X yazıyor..." yazısı ve kapsayıcısı ── */
+            [class*="typing"]{display:none!important;visibility:hidden!important;pointer-events:none!important;}
+            [class*="typingIndicator"]{display:none!important;}
+            [class*="typingUsers"]{display:none!important;}
+            [class*="typingText"]{display:none!important;}
+            /* ── SVG mask ile gösterilen yazıyor simgesi (avatar üstü) ── */
+            foreignObject[mask*="typing"]{display:none!important;}
+            mask[id*="typing"]{display:none!important;}
         `:"";
 
         BdApi.DOM.addStyle("AmbientProfileCSS",`
+            ${typingCSS}
         .ambient-profile-root{
             --ambient-base:114,137,218;--ambient-bright:153,170,255;--ambient-soft:230,235,255;
             --ambient-panel-alpha:${s.panelAlpha};--ambient-edge-alpha:${s.edgeAlpha};
