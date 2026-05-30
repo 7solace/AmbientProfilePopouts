@@ -1,7 +1,7 @@
 /**
  * @name AmbientProfilePopouts
  * @author s7lace
- * @version 1.5.4
+ * @version 1.6.0
  * @description Adds adaptive ambient glow, profile tools, and per-area animation system to Discord with a premium live-preview settings dashboard. animasyon stilleri ve hızları için canlı önizleme sistemi içeren gelişmiş bir profil kartı eklentisi.
  * @updateUrl https://raw.githubusercontent.com/7solace/AmbientProfilePopouts/main/AmbientProfilePopouts.plugin.js
  * @downloadUrl https://raw.githubusercontent.com/7solace/AmbientProfilePopouts/main/AmbientProfilePopouts.plugin.js
@@ -9,7 +9,7 @@
 
 const PLUGIN_NAME = "AmbientProfilePopouts";
 const PLUGIN_FILE = "AmbientProfilePopouts.plugin.js";
-const UPDATE_URL  = "https://raw.githubusercontent.com/7solace/AmbientProfilePopouts/main/AmbientProfilePopouts.plugin.js";
+const UPDATE_URL = "https://raw.githubusercontent.com/7solace/AmbientProfilePopouts/main/AmbientProfilePopouts.plugin.js";
 const UPDATE_CHECK_INTERVAL = 30 * 60 * 1000;
 
 const PROFILE_SELECTORS = [
@@ -20,65 +20,148 @@ const PROFILE_SELECTORS = [
 ].join(",");
 
 const IMAGE_SELECTORS = [
-    'img[src*="i.scdn.co"]','img[src*="spotify"]',
-    'svg foreignObject img','img[class*="avatar"]',
-    '[class*="avatar_"] img','[class*="banner_\"] img','[class*="profileBanner_\"] img'
+    'img[src*="i.scdn.co"]', 'img[src*="spotify"]',
+    'svg foreignObject img', 'img[class*="avatar"]',
+    '[class*="avatar_"] img', '[class*="banner_\"] img', '[class*="profileBanner_\"] img'
 ].join(",");
 
 const LINK_SCOPE_SELECTORS = [
-    '[id^="chat-messages-"]','[class*="message_"]','[class*="embed_"]'
+    '[id^="chat-messages-"]', '[class*="message_"]', '[class*="embed_"]'
 ].join(",");
 
 const SUSPICIOUS_DOMAINS = new Set([
-    "bit.ly","tinyurl.com","t.co","goo.gl","is.gd",
-    "cutt.ly","rb.gy","shorturl.at","grabify.link","iplogger.org","2no.co"
+    "bit.ly", "tinyurl.com", "t.co", "goo.gl", "is.gd",
+    "cutt.ly", "rb.gy", "shorturl.at", "grabify.link", "iplogger.org", "2no.co"
 ]);
 
 // ─── Animation definitions ───────────────────────────────────────────────────
 
-const ANIM_STYLES = ["none","fade","slide-up","slide-down","slide-left","slide-right","scale","blur","flip","spring","bounce","elastic","rotate","pulse","shake","jelly","zoom-in","zoom-out","slide-fade","pop"];
+const ANIM_STYLES = [
+    "none", "fade", "slide-up", "slide-down", "slide-left", "slide-right", "scale", "blur", "flip",
+    "spring", "bounce", "elastic", "rotate", "pulse", "shake", "jelly", "zoom-in", "zoom-out",
+    "slide-fade", "pop", "typewriter", "glitch", "morph", "wave", "reveal", "stagger", "swing", "ripple"
+];
+
 const ANIM_STYLE_LABELS = {
-    none:"Kapalı", fade:"Fade (Soluklaşma)",
-    "slide-up":"Slide Yukarı", "slide-down":"Slide Aşağı",
-    "slide-left":"Slide Sol", "slide-right":"Slide Sağ",
-    scale:"Scale / Zoom", blur:"Blur", flip:"Flip", spring:"Spring / Bounce",
-    bounce:"Bounce", elastic:"Elastic", rotate:"Rotate", pulse:"Pulse",
-    shake:"Shake", jelly:"Jelly", "zoom-in":"Zoom In", "zoom-out":"Zoom Out",
-    "slide-fade":"Slide + Fade", pop:"Pop"
+    none: "Kapalı", fade: "Fade (Soluklaşma)",
+    "slide-up": "Slide Yukarı", "slide-down": "Slide Aşağı",
+    "slide-left": "Slide Sol", "slide-right": "Slide Sağ",
+    scale: "Scale / Zoom", blur: "Blur", flip: "Flip", spring: "Spring / Bounce",
+    bounce: "Bounce", elastic: "Elastic", rotate: "Rotate", pulse: "Pulse",
+    shake: "Shake", jelly: "Jelly", "zoom-in": "Zoom In", "zoom-out": "Zoom Out",
+    "slide-fade": "Slide + Fade", pop: "Pop",
+    typewriter: "Typewriter (Daktilo)", glitch: "Glitch (Bozulma)", morph: "Morph (Şekil)",
+    wave: "Wave (Dalga)", reveal: "Reveal (Perde)", stagger: "Stagger (Basamaklı)",
+    swing: "Swing (Sallanma)", ripple: "Ripple (Su Dalgası)"
 };
 
 const ANIM_AREAS = {
-    messages:     { label:"Mesaj Girişi",            selector:'[id^="chat-messages-"] [class*="message_"]:not(.amb-done)' },
-    channelSwitch:{ label:"Kanal Değiştirme",        selector:'[class*="chat_"],[class*="chatContent_"]' },
-    serverSwitch: { label:"Sunucu Değiştirme",       selector:'[class*="guilds_"],[class*="guildsList_"]' },
-    sidebar:      { label:"Sidebar",                 selector:'[class*="sidebar_"],[class*="panels_"]' },
-    memberSidebar:{ label:"Member Sidebar",          selector:'[class*="membersWrap_"],[class*="members_"]' },
-    modals:       { label:"Modal & Popout",          selector:'[class*="modal_"],[class*="layer_"],[class*="userPopoutOuter_"]' },
-    emojiPicker:  { label:"Emoji & Reaction Picker", selector:'[class*="emojiPicker_"],[class*="reactionPicker_"]' },
-    toasts:       { label:"Bildirim Toast\'ları",    selector:'[class*="toast_"],[class*="toastItem_"],[class*="notice_"]' },
-    contextMenu:  { label:"Sağ Tık Menüsü",         selector:'[class*="menu_"][role="menu"]' },
+    messages: { label: "Mesaj Girişi", selector: '[id^="chat-messages-"] [class*="message_"]:not(.amb-done)' },
+    channelSwitch: { label: "Kanal Değiştirme", selector: '[class*="chat_"],[class*="chatContent_"]' },
+    serverSwitch: { label: "Sunucu Değiştirme", selector: '[class*="guilds_"],[class*="guildsList_"]' },
+    sidebar: { label: "Sidebar", selector: '[class*="sidebar_"],[class*="panels_"]' },
+    memberSidebar: { label: "Member Sidebar", selector: '[class*="membersWrap_"],[class*="members_"]' },
+    modals: { label: "Modal & Popout", selector: '[class*="modal_"],[class*="layer_"],[class*="userPopoutOuter_"]' },
+    emojiPicker: { label: "Emoji & Reaction Picker", selector: '[class*="emojiPicker_"],[class*="reactionPicker_"]' },
+    toasts: { label: "Bildirim Toast\'ları", selector: '[class*="toast_"],[class*="toastItem_"],[class*="notice_"]' },
+    contextMenu: { label: "Sağ Tık Menüsü", selector: '[class*="menu_"][role="menu"]' },
+    channelList: { label: "Kanal Listesi", selector: '[class*="channel_"],[class*="containerDefault_"]' },
+    memberList: { label: "Üye Listesi", selector: '[class*="member_"],[class*="memberInner_"]' },
+    searchResults: { label: "Arama Sonuçları", selector: '[class*="searchResult_"],[class*="searchResultGroup_"]' },
+    userProfile: { label: "Kullanıcı Profil Kartı", selector: '[class*="userProfileOuter_"],[class*="profileOuter_"]' },
+    statusBar: { label: "Durum Çubuğu", selector: '[class*="panels_"] > [class*="container_"]' }
 };
 
 const DEFAULT_SETTINGS = {
-    blurStrength:   22,
-    panelAlpha:     0.62,
-    glowOpacity:    0.82,
-    innerBlur:      8,
-    sheenOpacity:   0.62,
-    edgeAlpha:      0.52,
+    blurStrength: 22,
+    panelAlpha: 0.62,
+    glowOpacity: 0.82,
+    innerBlur: 8,
+    sheenOpacity: 0.62,
+    edgeAlpha: 0.52,
     animationSpeed: 1.0,
     hideTypingIndicator: false,
     invisibleTyping: false,
+    activePreset: "default",
     anim: {
-        messages:     { style:"slide-up",    duration:320, enabled:true },
-        channelSwitch:{ style:"fade",        duration:260, enabled:true },
-        serverSwitch: { style:"scale",       duration:280, enabled:true },
-        sidebar:      { style:"slide-left",  duration:300, enabled:true },
-        memberSidebar:{ style:"slide-right", duration:280, enabled:true },
-        modals:       { style:"spring",      duration:380, enabled:true },
-        emojiPicker:  { style:"scale",       duration:220, enabled:true },
-        toasts:       { style:"slide-right", duration:300, enabled:true },
-        contextMenu:  { style:"scale",       duration:180, enabled:true },
+        messages: { style: "slide-up", duration: 320, enabled: true, delay: 0, stagger: 0 },
+        channelSwitch: { style: "fade", duration: 260, enabled: true, delay: 0, stagger: 0 },
+        serverSwitch: { style: "scale", duration: 280, enabled: true, delay: 0, stagger: 0 },
+        sidebar: { style: "slide-left", duration: 300, enabled: true, delay: 0, stagger: 0 },
+        memberSidebar: { style: "slide-right", duration: 280, enabled: true, delay: 0, stagger: 0 },
+        modals: { style: "spring", duration: 380, enabled: true, delay: 0, stagger: 0 },
+        emojiPicker: { style: "scale", duration: 220, enabled: true, delay: 0, stagger: 0 },
+        toasts: { style: "slide-right", duration: 300, enabled: true, delay: 0, stagger: 0 },
+        contextMenu: { style: "scale", duration: 180, enabled: true, delay: 0, stagger: 0 },
+        channelList: { style: "fade", duration: 250, enabled: true, delay: 0, stagger: 30 },
+        memberList: { style: "fade", duration: 250, enabled: true, delay: 0, stagger: 30 },
+        searchResults: { style: "slide-up", duration: 300, enabled: true, delay: 0, stagger: 50 },
+        userProfile: { style: "zoom-in", duration: 400, enabled: true, delay: 0, stagger: 0 },
+        statusBar: { style: "slide-up", duration: 200, enabled: true, delay: 0, stagger: 0 },
+    }
+};
+
+const PRESETS = {
+    default: {
+        name: "Varsayılan",
+        anim: DEFAULT_SETTINGS.anim
+    },
+    minimal: {
+        name: "Minimal (Hızlı & Yumuşak)",
+        anim: {
+            messages: { style: "fade", duration: 200, enabled: true, delay: 0, stagger: 0 },
+            channelSwitch: { style: "fade", duration: 150, enabled: true, delay: 0, stagger: 0 },
+            serverSwitch: { style: "fade", duration: 150, enabled: true, delay: 0, stagger: 0 },
+            sidebar: { style: "fade", duration: 200, enabled: true, delay: 0, stagger: 0 },
+            memberSidebar: { style: "fade", duration: 200, enabled: true, delay: 0, stagger: 0 },
+            modals: { style: "scale", duration: 200, enabled: true, delay: 0, stagger: 0 },
+            emojiPicker: { style: "fade", duration: 150, enabled: true, delay: 0, stagger: 0 },
+            toasts: { style: "fade", duration: 200, enabled: true, delay: 0, stagger: 0 },
+            contextMenu: { style: "fade", duration: 150, enabled: true, delay: 0, stagger: 0 },
+            channelList: { style: "fade", duration: 150, enabled: true, delay: 0, stagger: 10 },
+            memberList: { style: "fade", duration: 150, enabled: true, delay: 0, stagger: 10 },
+            searchResults: { style: "fade", duration: 150, enabled: true, delay: 0, stagger: 20 },
+            userProfile: { style: "fade", duration: 200, enabled: true, delay: 0, stagger: 0 },
+            statusBar: { style: "fade", duration: 150, enabled: true, delay: 0, stagger: 0 }
+        }
+    },
+    bouncy: {
+        name: "Bouncy (Yaylanan)",
+        anim: {
+            messages: { style: "bounce", duration: 450, enabled: true, delay: 0, stagger: 0 },
+            channelSwitch: { style: "spring", duration: 400, enabled: true, delay: 0, stagger: 0 },
+            serverSwitch: { style: "spring", duration: 400, enabled: true, delay: 0, stagger: 0 },
+            sidebar: { style: "spring", duration: 450, enabled: true, delay: 0, stagger: 0 },
+            memberSidebar: { style: "spring", duration: 450, enabled: true, delay: 0, stagger: 0 },
+            modals: { style: "bounce", duration: 500, enabled: true, delay: 0, stagger: 0 },
+            emojiPicker: { style: "bounce", duration: 350, enabled: true, delay: 0, stagger: 0 },
+            toasts: { style: "spring", duration: 400, enabled: true, delay: 0, stagger: 0 },
+            contextMenu: { style: "spring", duration: 300, enabled: true, delay: 0, stagger: 0 },
+            channelList: { style: "spring", duration: 350, enabled: true, delay: 0, stagger: 40 },
+            memberList: { style: "spring", duration: 350, enabled: true, delay: 0, stagger: 40 },
+            searchResults: { style: "bounce", duration: 450, enabled: true, delay: 0, stagger: 60 },
+            userProfile: { style: "spring", duration: 550, enabled: true, delay: 0, stagger: 0 },
+            statusBar: { style: "spring", duration: 300, enabled: true, delay: 0, stagger: 0 }
+        }
+    },
+    dramatic: {
+        name: "Dramatik (Dikkat Çekici)",
+        anim: {
+            messages: { style: "slide-fade", duration: 500, enabled: true, delay: 0, stagger: 0 },
+            channelSwitch: { style: "blur", duration: 450, enabled: true, delay: 0, stagger: 0 },
+            serverSwitch: { style: "jelly", duration: 600, enabled: true, delay: 0, stagger: 0 },
+            sidebar: { style: "slide-fade", duration: 500, enabled: true, delay: 0, stagger: 0 },
+            memberSidebar: { style: "slide-fade", duration: 500, enabled: true, delay: 0, stagger: 0 },
+            modals: { style: "pop", duration: 600, enabled: true, delay: 0, stagger: 0 },
+            emojiPicker: { style: "pop", duration: 400, enabled: true, delay: 0, stagger: 0 },
+            toasts: { style: "swing", duration: 500, enabled: true, delay: 0, stagger: 0 },
+            contextMenu: { style: "flip", duration: 400, enabled: true, delay: 0, stagger: 0 },
+            channelList: { style: "stagger", duration: 400, enabled: true, delay: 0, stagger: 50 },
+            memberList: { style: "stagger", duration: 400, enabled: true, delay: 0, stagger: 50 },
+            searchResults: { style: "slide-fade", duration: 500, enabled: true, delay: 0, stagger: 70 },
+            userProfile: { style: "reveal", duration: 700, enabled: true, delay: 0, stagger: 0 },
+            statusBar: { style: "slide-up", duration: 300, enabled: true, delay: 0, stagger: 0 }
+        }
     }
 };
 
@@ -88,8 +171,8 @@ module.exports = class AmbientProfilePopouts {
 
     getSettings() {
         const saved = BdApi.Data.load(PLUGIN_NAME, "settings") || {};
-        const base  = Object.assign({}, DEFAULT_SETTINGS, saved);
-        base.anim   = {};
+        const base = Object.assign({}, DEFAULT_SETTINGS, saved);
+        base.anim = {};
         for (const k of Object.keys(DEFAULT_SETTINGS.anim))
             base.anim[k] = Object.assign({}, DEFAULT_SETTINGS.anim[k], saved.anim?.[k] || {});
         return base;
@@ -97,9 +180,182 @@ module.exports = class AmbientProfilePopouts {
 
     saveSettings(s) { BdApi.Data.save(PLUGIN_NAME, "settings", s); }
 
+    getPreviewContent(type) {
+        switch (type) {
+            case 'messages':
+            case 'messagesAnimGrid':
+                return `
+                    <div class="amb-animated-preview-item" style="background: #313338; border-radius: 8px; padding: 8px 12px; width: 80%; max-width: 200px; opacity: 0; display:flex; gap: 8px; align-items: center; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+                        <div style="width: 24px; height: 24px; background: #5865f2; border-radius: 50%; flex-shrink: 0;"></div>
+                        <div style="flex: 1;">
+                            <div style="height: 8px; background: #4e5058; border-radius: 4px; margin-bottom: 4px; width: 80%;"></div>
+                            <div style="height: 8px; background: #4e5058; border-radius: 4px; width: 60%;"></div>
+                        </div>
+                    </div>
+                `;
+            case 'channelSwitch':
+                return `
+                    <div class="amb-animated-preview-item" style="background: #313338; border-radius: 8px; width: 100%; height: 100%; opacity: 0; display: flex; flex-direction: column; padding: 12px; gap: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+                        <div style="height: 12px; background: #4e5058; border-radius: 4px; width: 40%;"></div>
+                        <div style="height: 8px; background: #4e5058; border-radius: 4px; width: 80%;"></div>
+                        <div style="height: 8px; background: #4e5058; border-radius: 4px; width: 60%;"></div>
+                    </div>
+                `;
+            case 'serverSwitch':
+                return `
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <div class="amb-animated-preview-item" style="width: 32px; height: 32px; background: #5865f2; border-radius: 10px; opacity: 0;"></div>
+                        <div class="amb-animated-preview-item" style="width: 32px; height: 32px; background: #313338; border-radius: 50%; opacity: 0;"></div>
+                        <div class="amb-animated-preview-item" style="width: 32px; height: 32px; background: #313338; border-radius: 50%; opacity: 0;"></div>
+                    </div>
+                `;
+            case 'sidebar':
+                return `
+                    <div style="display: flex; align-items: stretch; justify-content: flex-start; width: 100%; height: 100%;">
+                        <div class="amb-animated-preview-item" style="width: 60px; height: 100%; background: #2b2d31; border-radius: 6px; opacity: 0; display: flex; flex-direction: column; gap: 6px; padding: 8px;">
+                            <div style="height: 6px; background: #4e5058; border-radius: 3px; width: 80%;"></div>
+                            <div style="height: 6px; background: #4e5058; border-radius: 3px; width: 60%;"></div>
+                            <div style="height: 6px; background: #4e5058; border-radius: 3px; width: 90%;"></div>
+                        </div>
+                    </div>
+                `;
+            case 'memberSidebar':
+                return `
+                    <div style="display: flex; align-items: stretch; justify-content: flex-end; width: 100%; height: 100%;">
+                        <div class="amb-animated-preview-item" style="width: 70px; height: 100%; background: #2b2d31; border-radius: 6px; opacity: 0; display: flex; flex-direction: column; gap: 8px; padding: 8px;">
+                            <div style="display: flex; gap: 4px; align-items: center;">
+                                <div style="width: 12px; height: 12px; background: #5865f2; border-radius: 50%; flex-shrink: 0;"></div>
+                                <div style="height: 4px; background: #4e5058; border-radius: 2px; flex: 1;"></div>
+                            </div>
+                            <div style="display: flex; gap: 4px; align-items: center;">
+                                <div style="width: 12px; height: 12px; background: #313338; border-radius: 50%; flex-shrink: 0;"></div>
+                                <div style="height: 4px; background: #4e5058; border-radius: 2px; flex: 1;"></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            case 'modals':
+            case 'modalsAnimGrid':
+                return `
+                    <div class="amb-animated-preview-item" style="width: 140px; height: 70px; background: #313338; border-radius: 8px; opacity: 0; display: flex; flex-direction: column; padding: 10px; gap: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">
+                        <div style="height: 8px; background: #dbdee1; border-radius: 4px; width: 50%;"></div>
+                        <div style="height: 6px; background: #4e5058; border-radius: 3px; width: 100%;"></div>
+                        <div style="height: 6px; background: #4e5058; border-radius: 3px; width: 80%;"></div>
+                        <div style="margin-top: auto; display: flex; gap: 4px; justify-content: flex-end;">
+                            <div style="width: 30px; height: 12px; background: #5865f2; border-radius: 2px;"></div>
+                        </div>
+                    </div>
+                `;
+            case 'emojiPicker':
+                return `
+                    <div class="amb-animated-preview-item" style="width: 120px; height: 80px; background: #2b2d31; border-radius: 8px; opacity: 0; padding: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); display: flex; flex-direction: column; gap: 6px;">
+                        <div style="height: 12px; background: #1e1f22; border-radius: 4px; width: 100%;"></div>
+                        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; flex: 1;">
+                            <div style="background: #eeb428; border-radius: 50%;"></div>
+                            <div style="background: #eeb428; border-radius: 50%;"></div>
+                            <div style="background: #eeb428; border-radius: 50%;"></div>
+                            <div style="background: #eeb428; border-radius: 50%;"></div>
+                        </div>
+                    </div>
+                `;
+            case 'toasts':
+            case 'tooltipsAnimGrid':
+                return `
+                    <div style="display: flex; align-items: flex-end; justify-content: flex-end; width: 100%; height: 100%;">
+                        <div class="amb-animated-preview-item" style="width: 160px; height: 32px; background: #23a559; border-radius: 4px; opacity: 0; display: flex; align-items: center; padding: 0 8px; gap: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">
+                            <div style="width: 12px; height: 12px; background: #fff; border-radius: 50%; opacity: 0.8; flex-shrink: 0;"></div>
+                            <div style="height: 6px; background: #fff; border-radius: 3px; width: 60%; opacity: 0.9;"></div>
+                        </div>
+                    </div>
+                `;
+            case 'contextMenu':
+            case 'menusAnimGrid':
+                return `
+                    <div class="amb-animated-preview-item" style="width: 110px; background: #111214; border-radius: 4px; opacity: 0; padding: 6px; display: flex; flex-direction: column; gap: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+                        <div style="height: 12px; background: #5865f2; border-radius: 2px; width: 100%;"></div>
+                        <div style="height: 12px; background: #2b2d31; border-radius: 2px; width: 100%;"></div>
+                        <div style="height: 1px; background: #1e1f22; width: 100%; margin: 2px 0;"></div>
+                        <div style="height: 12px; background: #2b2d31; border-radius: 2px; width: 100%;"></div>
+                    </div>
+                `;
+            case 'channelList':
+                return `
+                    <div style="display: flex; flex-direction: column; gap: 4px; width: 100%;">
+                        <div class="amb-animated-preview-item" style="height: 16px; background: #2b2d31; border-radius: 4px; width: 70%; opacity: 0; display: flex; align-items: center; padding: 0 6px; gap: 6px;">
+                            <div style="width: 8px; height: 8px; background: #80848e; border-radius: 50%; flex-shrink: 0;"></div>
+                            <div style="height: 4px; background: #80848e; border-radius: 2px; width: 60%;"></div>
+                        </div>
+                        <div class="amb-animated-preview-item" style="height: 16px; background: #2b2d31; border-radius: 4px; width: 85%; opacity: 0; display: flex; align-items: center; padding: 0 6px; gap: 6px;">
+                            <div style="width: 8px; height: 8px; background: #80848e; border-radius: 50%; flex-shrink: 0;"></div>
+                            <div style="height: 4px; background: #80848e; border-radius: 2px; width: 50%;"></div>
+                        </div>
+                        <div class="amb-animated-preview-item" style="height: 16px; background: #2b2d31; border-radius: 4px; width: 60%; opacity: 0; display: flex; align-items: center; padding: 0 6px; gap: 6px;">
+                            <div style="width: 8px; height: 8px; background: #80848e; border-radius: 50%; flex-shrink: 0;"></div>
+                            <div style="height: 4px; background: #80848e; border-radius: 2px; width: 70%;"></div>
+                        </div>
+                    </div>
+                `;
+            case 'memberList':
+                return `
+                    <div style="display: flex; flex-direction: column; gap: 4px; align-items: flex-end; width: 100%;">
+                        <div class="amb-animated-preview-item" style="height: 24px; background: #2b2d31; border-radius: 12px; width: 80%; opacity: 0; display: flex; align-items: center; padding: 0 6px; gap: 6px;">
+                            <div style="width: 14px; height: 14px; background: #5865f2; border-radius: 50%; flex-shrink: 0;"></div>
+                            <div style="height: 6px; background: #dbdee1; border-radius: 3px; width: 50%;"></div>
+                        </div>
+                        <div class="amb-animated-preview-item" style="height: 24px; background: #2b2d31; border-radius: 12px; width: 90%; opacity: 0; display: flex; align-items: center; padding: 0 6px; gap: 6px;">
+                            <div style="width: 14px; height: 14px; background: #f23f43; border-radius: 50%; flex-shrink: 0;"></div>
+                            <div style="height: 6px; background: #dbdee1; border-radius: 3px; width: 60%;"></div>
+                        </div>
+                    </div>
+                `;
+            case 'searchResults':
+                return `
+                    <div style="display: flex; flex-direction: column; gap: 6px; width: 100%; height: 100%; overflow: hidden;">
+                        <div class="amb-animated-preview-item" style="background: #2b2d31; border-radius: 4px; padding: 6px; opacity: 0; border-left: 2px solid #5865f2;">
+                            <div style="height: 4px; background: #949ba4; border-radius: 2px; width: 40%; margin-bottom: 4px;"></div>
+                            <div style="height: 6px; background: #dbdee1; border-radius: 3px; width: 80%;"></div>
+                        </div>
+                        <div class="amb-animated-preview-item" style="background: #2b2d31; border-radius: 4px; padding: 6px; opacity: 0; border-left: 2px solid #5865f2;">
+                            <div style="height: 4px; background: #949ba4; border-radius: 2px; width: 30%; margin-bottom: 4px;"></div>
+                            <div style="height: 6px; background: #dbdee1; border-radius: 3px; width: 90%;"></div>
+                        </div>
+                    </div>
+                `;
+            case 'statusBar':
+                return `
+                    <div style="display: flex; align-items: flex-end; justify-content: center; width: 100%; height: 100%;">
+                        <div class="amb-animated-preview-item" style="width: 100%; height: 20px; background: #232428; border-radius: 4px; opacity: 0; display: flex; align-items: center; padding: 0 8px; justify-content: space-between;">
+                            <div style="display: flex; gap: 6px; align-items: center;">
+                                <div style="width: 12px; height: 12px; background: #5865f2; border-radius: 50%;"></div>
+                                <div style="height: 6px; background: #dbdee1; border-radius: 3px; width: 40px;"></div>
+                            </div>
+                            <div style="display: flex; gap: 4px;">
+                                <div style="width: 10px; height: 10px; background: #4e5058; border-radius: 50%;"></div>
+                                <div style="width: 10px; height: 10px; background: #4e5058; border-radius: 50%;"></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            case 'userProfile':
+            case 'allAnimGrid':
+            default:
+                return `
+                    <div class="amb-animated-preview-item" style="width: 120px; height: 80px; background: #232428; border-radius: 8px; opacity: 0; position: relative; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+                        <div style="height: 28px; background: #5865f2;"></div>
+                        <div style="position: absolute; top: 12px; left: 8px; width: 24px; height: 24px; background: #111214; border-radius: 50%; border: 2px solid #232428;"></div>
+                        <div style="padding: 14px 8px 6px; display: flex; flex-direction: column; gap: 4px;">
+                            <div style="height: 6px; background: #dbdee1; border-radius: 3px; width: 60%;"></div>
+                            <div style="height: 4px; background: #4e5058; border-radius: 2px; width: 80%;"></div>
+                            <div style="height: 4px; background: #4e5058; border-radius: 2px; width: 70%;"></div>
+                        </div>
+                    </div>
+                `;
+        }
+    }
+
     getSettingsPanel() {
         const s = this.getSettings();
-        
+
         // Create custom modal container
         const modalOverlay = document.createElement("div");
         modalOverlay.className = "amb-modal-overlay";
@@ -115,7 +371,7 @@ module.exports = class AmbientProfilePopouts {
             align-items: center;
             justify-content: center;
         `;
-        
+
         const modalContainer = document.createElement("div");
         modalContainer.className = "amb-modal-container";
         modalContainer.style.cssText = `
@@ -129,7 +385,7 @@ module.exports = class AmbientProfilePopouts {
             display: flex;
             flex-direction: column;
         `;
-        
+
         const modalHeader = document.createElement("div");
         modalHeader.style.cssText = `
             padding: 20px 24px;
@@ -139,7 +395,7 @@ module.exports = class AmbientProfilePopouts {
             justify-content: space-between;
             align-items: center;
         `;
-        
+
         const modalTitle = document.createElement("h2");
         modalTitle.textContent = "AmbientProfilePopouts Settings";
         modalTitle.style.cssText = `
@@ -148,7 +404,7 @@ module.exports = class AmbientProfilePopouts {
             font-weight: 600;
             color: #dbdee1;
         `;
-        
+
         const modalCloseBtn = document.createElement("button");
         modalCloseBtn.textContent = "✕";
         modalCloseBtn.style.cssText = `
@@ -171,16 +427,16 @@ module.exports = class AmbientProfilePopouts {
         modalCloseBtn.addEventListener("click", () => {
             modalOverlay.remove();
         });
-        
+
         modalHeader.appendChild(modalTitle);
         modalHeader.appendChild(modalCloseBtn);
-        
+
         const modalContent = document.createElement("div");
         modalContent.style.cssText = `
             flex: 1;
             overflow: hidden;
         `;
-        
+
         const wrap = document.createElement("div");
         wrap.className = "amb-settings-panel";
         wrap.style.cssText = `
@@ -188,15 +444,15 @@ module.exports = class AmbientProfilePopouts {
             height: 100%;
             display: flex;
         `;
-        
+
         modalContent.appendChild(wrap);
         modalContainer.appendChild(modalHeader);
         modalContainer.appendChild(modalContent);
         modalOverlay.appendChild(modalContainer);
-        
+
         // Append to body
         document.body.appendChild(modalOverlay);
-        
+
         // BetterAnimations tarzı modern CSS
         const styleBlock = document.createElement("style");
         styleBlock.textContent = `
@@ -442,7 +698,7 @@ module.exports = class AmbientProfilePopouts {
         // Sidebar
         const sidebar = document.createElement("div");
         sidebar.className = "amb-sidebar";
-        
+
         const sidebarItems = [
             { id: "home", label: "🏠 Ana Sayfa", icon: "home" },
             { id: "messages", label: "💬 Mesajlar", icon: "message" },
@@ -451,9 +707,9 @@ module.exports = class AmbientProfilePopouts {
             { id: "menus", label: "📋 Menüler", icon: "menu" },
             { id: "settings", label: "⚙️ Genel Ayarlar", icon: "settings" }
         ];
-        
+
         let activeSection = "home";
-        
+
         sidebarItems.forEach(item => {
             const btn = document.createElement("div");
             btn.className = `amb-sidebar-item ${item.id === activeSection ? 'active' : ''}`;
@@ -471,17 +727,17 @@ module.exports = class AmbientProfilePopouts {
             });
             sidebar.appendChild(btn);
         });
-        
+
         const divider = document.createElement("div");
         divider.className = "amb-sidebar-divider";
         sidebar.appendChild(divider);
-        
+
         wrap.appendChild(sidebar);
 
         // Main Content
         const mainContent = document.createElement("div");
         mainContent.className = "amb-main-content";
-        
+
         // Home Section
         const homeSection = document.createElement("div");
         homeSection.className = "amb-content-section amb-section-home active";
@@ -493,7 +749,7 @@ module.exports = class AmbientProfilePopouts {
             <div class="amb-anim-grid" id="allAnimGrid"></div>
         `;
         mainContent.appendChild(homeSection);
-        
+
         // Messages Section
         const messagesSection = document.createElement("div");
         messagesSection.className = "amb-content-section amb-section-messages";
@@ -503,7 +759,7 @@ module.exports = class AmbientProfilePopouts {
             <div class="amb-anim-grid" id="messagesAnimGrid"></div>
         `;
         mainContent.appendChild(messagesSection);
-        
+
         // Modals Section
         const modalsSection = document.createElement("div");
         modalsSection.className = "amb-content-section amb-section-modals";
@@ -513,7 +769,7 @@ module.exports = class AmbientProfilePopouts {
             <div class="amb-anim-grid" id="modalsAnimGrid"></div>
         `;
         mainContent.appendChild(modalsSection);
-        
+
         // Tooltips Section
         const tooltipsSection = document.createElement("div");
         tooltipsSection.className = "amb-content-section amb-section-tooltips";
@@ -523,7 +779,7 @@ module.exports = class AmbientProfilePopouts {
             <div class="amb-anim-grid" id="tooltipsAnimGrid"></div>
         `;
         mainContent.appendChild(tooltipsSection);
-        
+
         // Menus Section
         const menusSection = document.createElement("div");
         menusSection.className = "amb-content-section amb-section-menus";
@@ -533,7 +789,7 @@ module.exports = class AmbientProfilePopouts {
             <div class="amb-anim-grid" id="menusAnimGrid"></div>
         `;
         mainContent.appendChild(menusSection);
-        
+
         // Animation Detail Section (dynamic)
         const animDetailSection = document.createElement("div");
         animDetailSection.className = "amb-content-section amb-section-anim-detail";
@@ -544,12 +800,12 @@ module.exports = class AmbientProfilePopouts {
             <div id="animDetailSettings"></div>
         `;
         mainContent.appendChild(animDetailSection);
-        
+
         // Settings Section
         const settingsSection = document.createElement("div");
         settingsSection.className = "amb-content-section amb-section-settings";
         mainContent.appendChild(settingsSection);
-        
+
         wrap.appendChild(mainContent);
 
         // Animation Detail Section functionality
@@ -564,10 +820,10 @@ module.exports = class AmbientProfilePopouts {
             currentDetailStyle = style;
             animDetailTitle.textContent = `${label} - Animasyon Ayarları`;
             animDetailDesc.textContent = `Bu animasyon stilinin farklı Discord alanları için hız ayarlarını buradan yapılandırabilirsiniz.`;
-            
+
             // Clear previous settings
             animDetailSettings.innerHTML = '';
-            
+
             const cur = this.getSettings();
             const areaLabels = {
                 messages: "Mesaj Girişi",
@@ -591,7 +847,7 @@ module.exports = class AmbientProfilePopouts {
                 toasts: "Bildirim toast'larının (sağ üst bildirimler) animasyonu",
                 contextMenu: "Sağ tık menülerinin açılış animasyonu"
             };
-            
+
             // Create settings for each area
             for (const [areaKey, areaLabel] of Object.entries(areaLabels)) {
                 if (cur.anim[areaKey]) {
@@ -600,68 +856,58 @@ module.exports = class AmbientProfilePopouts {
                     const currentDuration = cur.anim[areaKey].duration || 300;
                     const isApplied = cur.anim[areaKey].style === style;
                     const isEnabled = cur.anim[areaKey].enabled !== false;
-                    
+
                     // Area-specific preview design
                     const getAreaPreviewHTML = (area) => {
-                        switch(area) {
-                            case 'messages':
-                                return `
-                                    <div class="amb-style-preview" style="height: 80px; margin: 8px 0; background: #1e1f22; border-radius: 8px; padding: 12px; position: relative;">
-                                        <div class="amb-preview-message" style="background: #313338; border-radius: 8px; padding: 8px 12px; max-width: 200px; opacity: 0;">
-                                            <div style="display: flex; gap: 8px; align-items: center;">
-                                                <div style="width: 24px; height: 24px; background: #5865f2; border-radius: 50%;"></div>
-                                                <div style="flex: 1;">
-                                                    <div style="height: 8px; background: #4e5058; border-radius: 4px; margin-bottom: 4px; width: 80%;"></div>
-                                                    <div style="height: 8px; background: #4e5058; border-radius: 4px; width: 60%;"></div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                `;
-                            case 'sidebar':
-                                return `
-                                    <div class="amb-style-preview" style="height: 80px; margin: 8px 0; background: #1e1f22; border-radius: 8px; padding: 12px; display: flex; gap: 8px;">
-                                        <div class="amb-preview-sidebar-item" style="width: 40px; height: 40px; background: #313338; border-radius: 50%; opacity: 0;"></div>
-                                        <div class="amb-preview-sidebar-item" style="width: 40px; height: 40px; background: #313338; border-radius: 50%; opacity: 0;"></div>
-                                        <div class="amb-preview-sidebar-item" style="width: 40px; height: 40px; background: #313338; border-radius: 50%; opacity: 0;"></div>
-                                    </div>
-                                `;
-                            case 'modals':
-                                return `
-                                    <div class="amb-style-preview" style="height: 80px; margin: 8px 0; background: #1e1f22; border-radius: 8px; padding: 12px; display: flex; align-items: center; justify-content: center;">
-                                        <div class="amb-preview-modal" style="width: 120px; height: 60px; background: #313338; border-radius: 8px; opacity: 0;"></div>
-                                    </div>
-                                `;
-                            case 'toasts':
-                                return `
-                                    <div class="amb-style-preview" style="height: 80px; margin: 8px 0; background: #1e1f22; border-radius: 8px; padding: 12px; display: flex; align-items: center; justify-content: center;">
-                                        <div class="amb-preview-toast" style="width: 180px; height: 40px; background: #3ba55c; border-radius: 4px; opacity: 0;"></div>
-                                    </div>
-                                `;
-                            default:
-                                return `
-                                    <div class="amb-style-preview" style="height: 60px; margin: 8px 0;">
-                                        <div class="amb-style-preview-box" style="width: 30px; height: 20px;"></div>
-                                    </div>
-                                `;
-                        }
+                        return `
+                            <div class="amb-style-preview" style="height: 100px; margin: 8px 0; background: #1e1f22; border-radius: 8px; padding: 12px; display: flex; align-items: center; justify-content: center;">
+                                ${this.getPreviewContent(area)}
+                            </div>
+                        `;
                     };
-                    
+
+                    const currentDelay = cur.anim[areaKey].delay || 0;
+                    const currentStagger = cur.anim[areaKey].stagger || 0;
+
                     areaSettings.innerHTML = `
                         <div class="amb-setter-top">
                             <span class="amb-setter-lbl">${areaLabel}</span>
                             <div style="display: flex; align-items: center; gap: 12px;">
-                                <span class="amb-setter-val">${currentDuration}ms ${isApplied ? '✓' : ''}</span>
+                                <span class="amb-setter-val" id="val-${areaKey}">${currentDuration}ms ✓</span>
                                 <button class="amb-toggle-btn area-toggle-btn" data-area="${areaKey}" style="width: 40px; height: 20px; border: 0; border-radius: 10px; cursor: pointer; position: relative; transition: all 0.2s ease; background: ${isEnabled ? '#5865f2' : '#4e5058'};">
                                     <span class="amb-toggle-dot" style="position: absolute; top: 2px; left: ${isEnabled ? '20px' : '2px'}; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: all 0.2s ease; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"></span>
                                 </button>
                             </div>
                         </div>
                         <div class="amb-setter-desc">${areaDescriptions[areaKey] || ''}</div>
-                        <div class="amb-setter-subdesc" style="font-size: 12px; color: #949ba4; margin-top: 4px;">${isEnabled ? (isApplied ? 'Bu animasyon şu an bu alana uygulanmış.' : 'Hız ayarlayın ve uygula butonuna basın.') : 'Bu animasyon kapalı. Toggle butonuna basarak açın.'}</div>
+                        <div class="amb-setter-subdesc" id="desc-${areaKey}" style="font-size: 12px; color: #949ba4; margin-top: 4px;">${isEnabled ? (isApplied ? 'Bu animasyon şu an bu alana uygulanmış.' : 'Hız ayarlayın ve uygula butonuna basın.') : 'Bu animasyon kapalı. Toggle butonuna basarak açın.'}</div>
                         ${getAreaPreviewHTML(areaKey)}
-                        <input type="range" min="80" max="800" step="10" value="${currentDuration}" class="area-speed-slider" data-area="${areaKey}" ${!isEnabled ? 'disabled' : ''}>
-                        <div style="display: flex; gap: 8px; margin-top: 12px;">
+                        
+                        <div style="margin-top: 16px;">
+                            <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                                <span style="font-size:12px; font-weight:600; color:#b5bac1;">Süre (Duration)</span>
+                                <span style="font-size:12px; font-weight:600; color:#b5bac1;" id="dur-val-${areaKey}">${currentDuration}ms</span>
+                            </div>
+                            <input type="range" min="80" max="1500" step="10" value="${currentDuration}" class="area-speed-slider" data-area="${areaKey}" ${!isEnabled ? 'disabled' : ''}>
+                        </div>
+                        
+                        <div style="margin-top: 12px;">
+                            <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                                <span style="font-size:12px; font-weight:600; color:#b5bac1;">Gecikme (Delay)</span>
+                                <span style="font-size:12px; font-weight:600; color:#b5bac1;" id="del-val-${areaKey}">${currentDelay}ms</span>
+                            </div>
+                            <input type="range" min="0" max="1000" step="10" value="${currentDelay}" class="area-delay-slider" data-area="${areaKey}" ${!isEnabled ? 'disabled' : ''}>
+                        </div>
+                        
+                        <div style="margin-top: 12px; ${['messages', 'channelList', 'memberList', 'searchResults'].includes(areaKey) ? '' : 'display:none;'}">
+                            <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                                <span style="font-size:12px; font-weight:600; color:#b5bac1;">Basamaklı Gecikme (Stagger)</span>
+                                <span style="font-size:12px; font-weight:600; color:#b5bac1;" id="stag-val-${areaKey}">${currentStagger}ms</span>
+                            </div>
+                            <input type="range" min="0" max="200" step="5" value="${currentStagger}" class="area-stagger-slider" data-area="${areaKey}" ${!isEnabled ? 'disabled' : ''}>
+                        </div>
+
+                        <div style="display: flex; gap: 8px; margin-top: 16px;">
                             <button class="amb-modal-btn amb-modal-btn-primary apply-anim-btn" data-area="${areaKey}" style="flex: 1;" ${!isEnabled ? 'disabled' : ''}>${isApplied ? 'Uygulandı' : 'Uygula'}</button>
                             <button class="amb-modal-btn amb-modal-btn-secondary preview-area-btn" data-area="${areaKey}" style="flex: 1;" ${!isEnabled ? 'disabled' : ''}>Önizle</button>
                         </div>
@@ -669,17 +915,17 @@ module.exports = class AmbientProfilePopouts {
                     animDetailSettings.appendChild(areaSettings);
                 }
             }
-            
+
             // Add event listeners
             animDetailSettings.querySelectorAll('.area-toggle-btn').forEach(toggleBtn => {
                 toggleBtn.addEventListener('click', (e) => {
-                    const areaKey = e.target.dataset.area;
+                    const areaKey = e.currentTarget.dataset.area;
                     const cur = this.getSettings();
                     const currentState = cur.anim[areaKey].enabled !== false;
                     cur.anim[areaKey].enabled = !currentState;
                     this.saveSettings(cur);
                     this.applySettingsToCSS(cur);
-                    
+
                     // Update UI
                     const toggleDot = toggleBtn.querySelector('.amb-toggle-dot');
                     if (cur.anim[areaKey].enabled) {
@@ -689,96 +935,99 @@ module.exports = class AmbientProfilePopouts {
                         toggleBtn.style.background = '#4e5058';
                         toggleDot.style.left = '2px';
                     }
-                    
+
                     // Enable/disable controls
                     const slider = animDetailSettings.querySelector(`.area-speed-slider[data-area="${areaKey}"]`);
+                    const delaySlider = animDetailSettings.querySelector(`.area-delay-slider[data-area="${areaKey}"]`);
+                    const staggerSlider = animDetailSettings.querySelector(`.area-stagger-slider[data-area="${areaKey}"]`);
                     const applyBtn = animDetailSettings.querySelector(`.apply-anim-btn[data-area="${areaKey}"]`);
                     const previewBtn = animDetailSettings.querySelector(`.preview-area-btn[data-area="${areaKey}"]`);
-                    const subdesc = toggleBtn.parentElement.parentElement.querySelector('.amb-setter-subdesc');
-                    
-                    if (cur.anim[areaKey].enabled) {
-                        slider.disabled = false;
-                        applyBtn.disabled = false;
-                        previewBtn.disabled = false;
+                    const subdesc = animDetailSettings.querySelector(`#desc-${areaKey}`);
+
+                    const st = cur.anim[areaKey].enabled;
+                    slider.disabled = !st;
+                    if (delaySlider) delaySlider.disabled = !st;
+                    if (staggerSlider) staggerSlider.disabled = !st;
+                    applyBtn.disabled = !st;
+                    previewBtn.disabled = !st;
+
+                    if (st) {
                         subdesc.textContent = cur.anim[areaKey].style === style ? 'Bu animasyon şu an bu alana uygulanmış.' : 'Hız ayarlayın ve uygula butonuna basın.';
                     } else {
-                        slider.disabled = true;
-                        applyBtn.disabled = true;
-                        previewBtn.disabled = true;
                         subdesc.textContent = 'Bu animasyon kapalı. Toggle butonuna basarak açın.';
                     }
-                    
-                    this.toast(`${areaLabel} animasyonu ${cur.anim[areaKey].enabled ? 'açık' : 'kapalı'}.`, "success");
+
+                    this.toast(`${areaLabel} animasyonu ${st ? 'açık' : 'kapalı'}.`, "success");
                 });
             });
-            
+
             animDetailSettings.querySelectorAll('.area-speed-slider').forEach(slider => {
                 slider.addEventListener('input', (e) => {
-                    const valSpan = e.target.parentElement.querySelector('.amb-setter-val');
-                    valSpan.textContent = `${e.target.value}ms`;
+                    const valSpan = animDetailSettings.querySelector(`#dur-val-${e.target.dataset.area}`);
+                    if (valSpan) valSpan.textContent = `${e.target.value}ms`;
                 });
             });
-            
+            animDetailSettings.querySelectorAll('.area-delay-slider').forEach(slider => {
+                slider.addEventListener('input', (e) => {
+                    const valSpan = animDetailSettings.querySelector(`#del-val-${e.target.dataset.area}`);
+                    if (valSpan) valSpan.textContent = `${e.target.value}ms`;
+                });
+            });
+            animDetailSettings.querySelectorAll('.area-stagger-slider').forEach(slider => {
+                slider.addEventListener('input', (e) => {
+                    const valSpan = animDetailSettings.querySelector(`#stag-val-${e.target.dataset.area}`);
+                    if (valSpan) valSpan.textContent = `${e.target.value}ms`;
+                });
+            });
+
             animDetailSettings.querySelectorAll('.apply-anim-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => {
-                    const areaKey = e.target.dataset.area;
+                    const areaKey = e.currentTarget.dataset.area;
                     const slider = animDetailSettings.querySelector(`.area-speed-slider[data-area="${areaKey}"]`);
+                    const delaySlider = animDetailSettings.querySelector(`.area-delay-slider[data-area="${areaKey}"]`);
+                    const staggerSlider = animDetailSettings.querySelector(`.area-stagger-slider[data-area="${areaKey}"]`);
+
                     const duration = parseInt(slider.value);
-                    
+                    const delay = delaySlider ? parseInt(delaySlider.value) : 0;
+                    const stagger = staggerSlider ? parseInt(staggerSlider.value) : 0;
+
                     const cur = this.getSettings();
                     cur.anim[areaKey].style = style;
                     cur.anim[areaKey].duration = duration;
+                    cur.anim[areaKey].delay = delay;
+                    cur.anim[areaKey].stagger = stagger;
+
                     this.saveSettings(cur);
                     this.applySettingsToCSS(cur);
-                    
-                    e.target.textContent = 'Uygulandı';
-                    e.target.style.background = 'linear-gradient(135deg, #3ba55c, #2d7d46)';
-                    
-                    const valSpan = slider.parentElement.querySelector('.amb-setter-val');
-                    valSpan.textContent = `${duration}ms ✓`;
-                    
-                    const desc = slider.parentElement.querySelector('.amb-setter-desc');
-                    desc.textContent = 'Bu animasyon şu an bu alana uygulanmış.';
-                    
+
+                    e.currentTarget.textContent = 'Uygulandı';
+                    e.currentTarget.style.background = 'linear-gradient(135deg, #3ba55c, #2d7d46)';
+
+                    const valSpan = animDetailSettings.querySelector(`#val-${areaKey}`);
+                    if (valSpan) valSpan.textContent = `${duration}ms ✓`;
+
+                    const desc = animDetailSettings.querySelector(`#desc-${areaKey}`);
+                    if (desc) desc.textContent = 'Bu animasyon şu an bu alana uygulanmış.';
+
                     this.toast(`${label} animasyonu ${areaKey} alanına uygulandı.`, "success");
                 });
             });
-            
+
             // Add preview button functionality
             animDetailSettings.querySelectorAll('.preview-area-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     const areaKey = e.target.dataset.area;
                     const slider = animDetailSettings.querySelector(`.area-speed-slider[data-area="${areaKey}"]`);
                     const duration = parseInt(slider.value);
-                    
+
                     // Get the correct preview element based on area
-                    let previewElement;
-                    switch(areaKey) {
-                        case 'messages':
-                            previewElement = e.target.parentElement.parentElement.querySelector('.amb-preview-message');
-                            break;
-                        case 'sidebar':
-                            previewElement = e.target.parentElement.parentElement.querySelectorAll('.amb-preview-sidebar-item');
-                            break;
-                        case 'modals':
-                            previewElement = e.target.parentElement.parentElement.querySelector('.amb-preview-modal');
-                            break;
-                        case 'toasts':
-                            previewElement = e.target.parentElement.parentElement.querySelector('.amb-preview-toast');
-                            break;
-                        default:
-                            previewElement = e.target.parentElement.parentElement.querySelector('.amb-style-preview-box');
-                    }
-                    
+                    const previewElements = e.target.parentElement.parentElement.querySelectorAll('.amb-animated-preview-item');
+
                     if (style === "none") {
-                        if (Array.isArray(previewElement)) {
-                            previewElement.forEach(el => el.style.opacity = "0");
-                        } else {
-                            previewElement.style.opacity = "0";
-                        }
+                        previewElements.forEach(el => el.style.opacity = "0");
                         return;
                     }
-                    
+
                     const easingMap = {
                         "spring": "cubic-bezier(.34,1.56,.64,1)",
                         "bounce": "cubic-bezier(.68,-0.55,.265,1.55)",
@@ -801,30 +1050,25 @@ module.exports = class AmbientProfilePopouts {
                         "slide-fade": "cubic-bezier(.25,1,.5,1)"
                     };
                     const easing = easingMap[style] || "cubic-bezier(.22,.68,0,1.2)";
-                    
+
                     // Apply animation to preview element(s)
-                    if (Array.isArray(previewElement)) {
-                        previewElement.forEach((el, index) => {
-                            el.style.animation = "none";
-                            void el.offsetWidth;
-                            el.style.animation = `amb-${style} ${duration}ms ${easing} both`;
-                            el.style.animationDelay = `${index * 50}ms`;
-                        });
-                    } else {
-                        previewElement.style.animation = "none";
-                        void previewElement.offsetWidth;
-                        previewElement.style.animation = `amb-${style} ${duration}ms ${easing} both`;
-                    }
+                    previewElements.forEach(el => { el.style.animation = "none"; });
+                    if (previewElements.length > 0) void previewElements[0].offsetWidth;
+
+                    previewElements.forEach((el, index) => {
+                        el.style.animation = `amb-${style} ${duration}ms ${easing} both`;
+                        el.style.animationDelay = `${index * 50}ms`;
+                    });
                 });
             });
-            
+
             // Hide all sections and show detail
             document.querySelectorAll('.amb-content-section').forEach(el => el.classList.remove('active'));
             animDetailSection.classList.add('active');
             // Reset scroll position
             mainContent.scrollTop = 0;
         };
-        
+
         backToGridBtn.addEventListener('click', () => {
             document.querySelectorAll('.amb-content-section').forEach(el => el.classList.remove('active'));
             document.querySelector(`.amb-section-${previousSection}`).classList.add('active');
@@ -854,14 +1098,22 @@ module.exports = class AmbientProfilePopouts {
                 "zoom-in": "Uzaklaşarak görünür",
                 "zoom-out": "Yakınlaşarak görünür",
                 "slide-fade": "Kayarak ve soluklaşarak görünür",
-                "pop": "Patlayarak görünür"
+                "pop": "Patlayarak görünür",
+                "typewriter": "Yazı yazıyormuş gibi belirir",
+                "glitch": "Sayısal bozulma (glitch) efekti ile gelir",
+                "morph": "Şekil değiştirerek gelir",
+                "wave": "Dalgalanarak gelir",
+                "reveal": "Perde açılır gibi gelir",
+                "stagger": "Basamaklı (stagger) efekt ile gelir",
+                "swing": "Sarkaç gibi sallanarak gelir",
+                "ripple": "Su dalgası (ripple) efekti ile gelir"
             };
-            
+
             const card = document.createElement("div");
             card.className = "amb-style-card";
             card.innerHTML = `
                 <div class="amb-style-preview">
-                    <div class="amb-style-preview-box"></div>
+                    ${this.getPreviewContent(targetGridId)}
                 </div>
                 <div class="amb-style-name">${label}</div>
                 <div class="amb-style-desc">${animDescriptions[style] || ""}</div>
@@ -869,15 +1121,16 @@ module.exports = class AmbientProfilePopouts {
                     <button class="amb-style-btn preview-btn" title="Önizle">▶️</button>
                 </div>
             `;
-            
-            const previewBox = card.querySelector('.amb-style-preview-box');
+
+            const previewItems = card.querySelectorAll('.amb-animated-preview-item');
             const previewBtn = card.querySelector('.preview-btn');
-            
+
             const triggerCardPreview = () => {
-                previewBox.style.animation = "none";
-                void previewBox.offsetWidth;
+                previewItems.forEach(item => { item.style.animation = "none"; });
+                if (previewItems.length > 0) void previewItems[0].offsetWidth;
+
                 if (style === "none") {
-                    previewBox.style.opacity = "0";
+                    previewItems.forEach(item => { item.style.opacity = "0"; });
                     return;
                 }
                 const easingMap = {
@@ -899,7 +1152,15 @@ module.exports = class AmbientProfilePopouts {
                     "pulse": "cubic-bezier(.4,0,.6,1)",
                     "zoom-in": "cubic-bezier(.34,1.56,.64,1)",
                     "zoom-out": "cubic-bezier(.34,1.56,.64,1)",
-                    "slide-fade": "cubic-bezier(.25,1,.5,1)"
+                    "slide-fade": "cubic-bezier(.25,1,.5,1)",
+                    "typewriter": "steps(40, end)",
+                    "glitch": "cubic-bezier(.25,1,.5,1)",
+                    "morph": "cubic-bezier(.34,1.56,.64,1)",
+                    "wave": "cubic-bezier(.25,1,.5,1)",
+                    "reveal": "cubic-bezier(.25,1,.5,1)",
+                    "stagger": "cubic-bezier(.25,1,.5,1)",
+                    "swing": "cubic-bezier(.25,1,.5,1)",
+                    "ripple": "cubic-bezier(.25,1,.5,1)"
                 };
                 const easing = easingMap[style] || "cubic-bezier(.22,.68,0,1.2)";
                 const durationMap = {
@@ -921,27 +1182,39 @@ module.exports = class AmbientProfilePopouts {
                     "pulse": 800,
                     "zoom-in": 600,
                     "zoom-out": 600,
-                    "slide-fade": 700
+                    "slide-fade": 700,
+                    "typewriter": 800,
+                    "glitch": 400,
+                    "morph": 600,
+                    "wave": 700,
+                    "reveal": 600,
+                    "stagger": 500,
+                    "swing": 800,
+                    "ripple": 700
                 };
                 const duration = durationMap[style] || 600;
-                previewBox.style.animation = `amb-${style} ${duration}ms ${easing} both`;
+                
+                previewItems.forEach((item, index) => {
+                    item.style.animation = `amb-${style} ${duration}ms ${easing} both`;
+                    item.style.animationDelay = `${index * 50}ms`;
+                });
             };
-            
+
             card.addEventListener('mouseenter', triggerCardPreview);
             previewBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 triggerCardPreview();
             });
-            
+
             // Card click to show detail
             card.addEventListener('click', () => {
                 previousSection = activeSection;
                 showAnimDetail(style, label);
             });
-            
+
             return card;
         };
-        
+
         // Populate animation grids
         const allAnimGrid = homeSection.querySelector('#allAnimGrid');
         ANIM_STYLES.forEach(style => {
@@ -949,7 +1222,7 @@ module.exports = class AmbientProfilePopouts {
                 allAnimGrid.appendChild(createAnimStyleCard(style, ANIM_STYLE_LABELS[style], 'allAnimGrid'));
             }
         });
-        
+
         // Populate other grids with relevant animations
         const messagesAnimGrid = messagesSection.querySelector('#messagesAnimGrid');
         ANIM_STYLES.slice(0, 10).forEach(style => {
@@ -957,23 +1230,23 @@ module.exports = class AmbientProfilePopouts {
                 messagesAnimGrid.appendChild(createAnimStyleCard(style, ANIM_STYLE_LABELS[style], 'messagesAnimGrid'));
             }
         });
-        
+
         const modalsAnimGrid = modalsSection.querySelector('#modalsAnimGrid');
         ANIM_STYLES.slice(0, 12).forEach(style => {
             if (style !== "none") {
                 modalsAnimGrid.appendChild(createAnimStyleCard(style, ANIM_STYLE_LABELS[style], 'modalsAnimGrid'));
             }
         });
-        
+
         const tooltipsAnimGrid = tooltipsSection.querySelector('#tooltipsAnimGrid');
         ANIM_STYLES.slice(0, 8).forEach(style => {
             if (style !== "none") {
                 tooltipsAnimGrid.appendChild(createAnimStyleCard(style, ANIM_STYLE_LABELS[style], 'tooltipsAnimGrid'));
             }
         });
-        
+
         const menusAnimGrid = menusSection.querySelector('#menusAnimGrid');
-        ANIM_STYLES.slice(0, 8).forEach(style => {
+        ANIM_STYLES.forEach(style => {
             if (style !== "none") {
                 menusAnimGrid.appendChild(createAnimStyleCard(style, ANIM_STYLE_LABELS[style], 'menusAnimGrid'));
             }
@@ -981,13 +1254,13 @@ module.exports = class AmbientProfilePopouts {
 
         // Settings Section Content
         const glassSliders = [
-            {key:"blurStrength",   label:"Cam Bulanıklığı",         desc:"Profil kartının arkasındaki blur efekti. Daha yüksek değer daha fazla bulanıklık.",       min:0,  max:60, step:1},
-            {key:"innerBlur",      label:"İç Katman Bulanıklığı",   desc:"Profil içindeki panellerin blur değeri. Daha düşük değer daha net görünür.", min:0,  max:30, step:1},
-            {key:"panelAlpha",     label:"Arka Plan Saydamlığı",    desc:"Profil kartının arka plan saydamlığı. 0 = tam saydam, 1 = tam opak.",      min:0,  max:1,  step:0.01},
-            {key:"glowOpacity",    label:"Glow Yoğunluğu",         desc:"Profil etrafındaki ambient ışık efektinin yoğunluğu.",    min:0,  max:1,  step:0.01},
-            {key:"sheenOpacity",   label:"Parlaklık (Sheen)",       desc:"Profil üzerinde kayan parlaklık efektinin yoğunluğu.", min:0,  max:1,  step:0.01},
-            {key:"edgeAlpha",      label:"Kenar Işığı",             desc:"Profil kartının kenar çerçevesinin parlaklığı.",       min:0,  max:1,  step:0.01},
-            {key:"animationSpeed", label:"Glow Animasyon Hızı",    desc:"Glow efektinin animasyon hızı. 1x = varsayılan hız.",                min:0.1,max:3,  step:0.1},
+            { key: "blurStrength", label: "Cam Bulanıklığı", desc: "Profil kartının arkasındaki blur efekti. Daha yüksek değer daha fazla bulanıklık.", min: 0, max: 60, step: 1 },
+            { key: "innerBlur", label: "İç Katman Bulanıklığı", desc: "Profil içindeki panellerin blur değeri. Daha düşük değer daha net görünür.", min: 0, max: 30, step: 1 },
+            { key: "panelAlpha", label: "Arka Plan Saydamlığı", desc: "Profil kartının arka plan saydamlığı. 0 = tam saydam, 1 = tam opak.", min: 0, max: 1, step: 0.01 },
+            { key: "glowOpacity", label: "Glow Yoğunluğu", desc: "Profil etrafındaki ambient ışık efektinin yoğunluğu.", min: 0, max: 1, step: 0.01 },
+            { key: "sheenOpacity", label: "Parlaklık (Sheen)", desc: "Profil üzerinde kayan parlaklık efektinin yoğunluğu.", min: 0, max: 1, step: 0.01 },
+            { key: "edgeAlpha", label: "Kenar Işığı", desc: "Profil kartının kenar çerçevesinin parlaklığı.", min: 0, max: 1, step: 0.01 },
+            { key: "animationSpeed", label: "Glow Animasyon Hızı", desc: "Glow efektinin animasyon hızı. 1x = varsayılan hız.", min: 0.1, max: 3, step: 0.1 },
         ];
 
         const mkPremiumSlider = (label, desc, min, max, step, val, onChange) => {
@@ -1010,11 +1283,52 @@ module.exports = class AmbientProfilePopouts {
             return row;
         };
 
+        const mkPresetSelector = () => {
+            const s = this.getSettings();
+            const row = document.createElement("div"); row.className = "amb-setter-row";
+            row.style.marginBottom = "24px";
+            row.innerHTML = `
+                <div class="amb-setter-top">
+                    <span class="amb-setter-lbl">Hazır Paket (Preset) Seçimi</span>
+                </div>
+                <div class="amb-setter-desc">Animasyonları tek tıkla belirli bir stile ayarlayın.</div>
+                <select class="amb-select-el" style="margin-top:12px;">
+                    ${Object.entries(PRESETS).map(([k, p]) => `<option value="${k}" ${s.activePreset === k ? 'selected' : ''}>${p.name}</option>`).join('')}
+                </select>
+            `;
+            const select = row.querySelector('select');
+            select.addEventListener('change', (e) => {
+                const presetKey = e.target.value;
+                const preset = PRESETS[presetKey];
+                if (preset) {
+                    const cur = this.getSettings();
+                    cur.activePreset = presetKey;
+                    cur.anim = JSON.parse(JSON.stringify(preset.anim)); // Deep copy
+                    this.saveSettings(cur);
+                    this.applySettingsToCSS(cur);
+                    this.toast(`${preset.name} paketi başarıyla uygulandı!`, "success");
+
+                    // Trigger a re-render by "re-opening" the settings section
+                    setTimeout(() => {
+                        const evt = new MouseEvent("click", {
+                            bubbles: true,
+                            cancelable: true,
+                            view: window
+                        });
+                        document.querySelector('.amb-sidebar-item[data-section="settings"]').dispatchEvent(evt);
+                    }, 200);
+                }
+            });
+            return row;
+        };
+
         settingsSection.innerHTML = `
             <h2 class="amb-section-title">Genel Ayarlar</h2>
-            <p class="amb-section-desc">Cam efektleri, glow ve diğer görsel ayarları buradan yapılandırabilirsiniz.</p>
+            <p class="amb-section-desc">Animasyon paketleri, cam efektleri, glow ve diğer görsel ayarları buradan yapılandırabilirsiniz.</p>
         `;
-        
+
+        settingsSection.appendChild(mkPresetSelector());
+
         for (const cfg of glassSliders) {
             settingsSection.appendChild(mkPremiumSlider(cfg.label, cfg.desc, cfg.min, cfg.max, cfg.step, s[cfg.key], (v) => {
                 const cur = this.getSettings(); cur[cfg.key] = v; this.saveSettings(cur); this.applySettingsToCSS(cur);
@@ -1129,9 +1443,9 @@ module.exports = class AmbientProfilePopouts {
                 return;
             }
             const original = TypingModule.startTyping.bind(TypingModule);
-            TypingModule.startTyping = function() { /* gizlendi — hiçbir şey gönderilmez */ };
+            TypingModule.startTyping = function () { /* gizlendi — hiçbir şey gönderilmez */ };
             this._typingPatch = () => { TypingModule.startTyping = original; };
-        } catch(err) {
+        } catch (err) {
             console.error(`${PLUGIN_NAME}: patchInvisibleTyping hata:`, err);
         }
     }
@@ -1143,7 +1457,7 @@ module.exports = class AmbientProfilePopouts {
             this.handleShiftClickCopy = this.handleShiftClickCopy.bind(this);
             document.addEventListener("click", this.handleShiftClickCopy, true);
             this.checkForUpdates();
-            this.updateInterval = setInterval(()=>this.checkForUpdates(true), UPDATE_CHECK_INTERVAL);
+            this.updateInterval = setInterval(() => this.checkForUpdates(true), UPDATE_CHECK_INTERVAL);
             const s = this.getSettings();
             this.injectCSS(s);
             this.injectAnimCSS(s);
@@ -1168,8 +1482,8 @@ module.exports = class AmbientProfilePopouts {
             });
 
             const appMount = document.getElementById("app-mount") || document.body;
-            this.observer.observe(appMount, { childList:true, subtree:true, attributes:true, attributeFilter:["class","src"] });
-        } catch(err) {
+            this.observer.observe(appMount, { childList: true, subtree: true, attributes: true, attributeFilter: ["class", "src"] });
+        } catch (err) {
             console.error(`${PLUGIN_NAME} start failed:`, err);
         }
     }
@@ -1181,14 +1495,14 @@ module.exports = class AmbientProfilePopouts {
             document.removeEventListener("click", this.handleShiftClickCopy, true);
             if (this.observer) this.observer.disconnect();
             if (this.updateInterval) clearInterval(this.updateInterval);
-            document.querySelectorAll(".ambient-profile-container,.ambient-profile-tools,.ambient-profile-note,.ambient-link-tools,.ambient-code-copy,.ambient-profile-tags").forEach(el=>el.remove());
-            document.querySelectorAll(".ambient-enhanced-link").forEach(el=>{el.classList.remove("ambient-enhanced-link");el.removeAttribute("data-ambient-domain");el.removeAttribute("data-ambient-risk");});
-            document.querySelectorAll(".ambient-enhanced-code").forEach(el=>el.classList.remove("ambient-enhanced-code"));
-            document.querySelectorAll(".ambient-spotify-card").forEach(el=>el.classList.remove("ambient-spotify-card"));
-            document.querySelectorAll(".ambient-profile-root").forEach(el=>el.classList.remove("ambient-profile-root"));
-            document.querySelectorAll(".amb-done").forEach(el=>el.classList.remove("amb-done"));
+            document.querySelectorAll(".ambient-profile-container,.ambient-profile-tools,.ambient-profile-note,.ambient-link-tools,.ambient-code-copy,.ambient-profile-tags").forEach(el => el.remove());
+            document.querySelectorAll(".ambient-enhanced-link").forEach(el => { el.classList.remove("ambient-enhanced-link"); el.removeAttribute("data-ambient-domain"); el.removeAttribute("data-ambient-risk"); });
+            document.querySelectorAll(".ambient-enhanced-code").forEach(el => el.classList.remove("ambient-enhanced-code"));
+            document.querySelectorAll(".ambient-spotify-card").forEach(el => el.classList.remove("ambient-spotify-card"));
+            document.querySelectorAll(".ambient-profile-root").forEach(el => el.classList.remove("ambient-profile-root"));
+            document.querySelectorAll(".amb-done").forEach(el => el.classList.remove("amb-done"));
             for (const k of Object.keys(ANIM_AREAS))
-                document.querySelectorAll(`.ambient-anim-${k}`).forEach(el=>el.classList.remove(`ambient-anim-${k}`));
+                document.querySelectorAll(`.ambient-anim-${k}`).forEach(el => el.classList.remove(`ambient-anim-${k}`));
             // Invisible typing patch'i geri al
             if (this._typingPatch) { this._typingPatch(); this._typingPatch = null; }
         }
@@ -1217,6 +1531,14 @@ module.exports = class AmbientProfilePopouts {
         @keyframes amb-zoom-out    { from{opacity:0;transform:scale(1.8)} to{opacity:1;transform:scale(1)} }
         @keyframes amb-slide-fade  { from{opacity:0;transform:translateY(30px) scale(0.9)} to{opacity:1;transform:translateY(0) scale(1)} }
         @keyframes amb-pop         { 0%{opacity:0;transform:scale(0.4)} 50%{opacity:1;transform:scale(1.15)} 100%{transform:scale(1)} }
+        @keyframes amb-typewriter  { from{opacity:0;clip-path:inset(0 100% 0 0)} to{opacity:1;clip-path:inset(0 0 0 0)} }
+        @keyframes amb-glitch      { 0%{clip-path:inset(20% 0 80% 0);transform:translate(-2px,1px)} 20%{clip-path:inset(60% 0 10% 0);transform:translate(2px,-1px)} 40%{clip-path:inset(40% 0 50% 0);transform:translate(-2px,2px)} 60%{clip-path:inset(80% 0 5% 0);transform:translate(2px,-2px)} 80%{clip-path:inset(10% 0 70% 0);transform:translate(-1px,1px)} 100%{clip-path:inset(0 0 0 0);transform:translate(0)} }
+        @keyframes amb-morph       { 0%{opacity:0;border-radius:50%;transform:scale(0.5) rotate(-45deg)} 100%{opacity:1;border-radius:inherit;transform:scale(1) rotate(0)} }
+        @keyframes amb-wave        { 0%{opacity:0;transform:translateY(20px) skewY(5deg)} 50%{opacity:1;transform:translateY(-5px) skewY(-3deg)} 100%{transform:translateY(0) skewY(0)} }
+        @keyframes amb-reveal      { 0%{opacity:0;clip-path:inset(100% 0 0 0);transform:translateY(20px)} 100%{opacity:1;clip-path:inset(0 0 0 0);transform:translateY(0)} }
+        @keyframes amb-stagger     { 0%{opacity:0;transform:translateY(15px) scale(0.95)} 100%{opacity:1;transform:translateY(0) scale(1)} }
+        @keyframes amb-swing       { 0%{opacity:0;transform:rotateX(-100deg);transform-origin:top} 40%{transform:rotateX(20deg);transform-origin:top} 60%{transform:rotateX(-10deg);transform-origin:top} 80%{transform:rotateX(5deg);transform-origin:top} 100%{opacity:1;transform:rotateX(0);transform-origin:top} }
+        @keyframes amb-ripple      { 0%{opacity:0;transform:scale(0.8);box-shadow:0 0 0 0 rgba(var(--ambient-bright,255,255,255), 0.7)} 70%{opacity:1;transform:scale(1.05);box-shadow:0 0 0 10px rgba(var(--ambient-bright,255,255,255), 0)} 100%{transform:scale(1);box-shadow:0 0 0 0 rgba(var(--ambient-bright,255,255,255), 0)} }
         `];
 
         for (const [areaKey, cfg] of Object.entries(s.anim)) {
@@ -1255,7 +1577,8 @@ module.exports = class AmbientProfilePopouts {
                 };
                 easing = messageEasingMap[cfg.style] || "cubic-bezier(.25,1,.5,1)";
             }
-            rules.push(`.ambient-anim-${areaKey}{animation:amb-${cfg.style} ${cfg.duration}ms ${easing} both;will-change:transform,opacity;}`);
+            const delayCSS = cfg.delay > 0 ? `animation-delay:${cfg.delay}ms;` : '';
+            rules.push(`.ambient-anim-${areaKey}{animation:amb-${cfg.style} ${cfg.duration}ms ${easing} both;${delayCSS}will-change:transform,opacity,clip-path;}`);
         }
 
         BdApi.DOM.addStyle("AmbientAnimCSS", rules.join("\n"));
@@ -1265,83 +1588,101 @@ module.exports = class AmbientProfilePopouts {
         const s = this.getSettings();
         for (const [areaKey, areaMeta] of Object.entries(ANIM_AREAS)) {
             const cfg = s.anim[areaKey];
-            if (!cfg?.enabled || cfg.style==="none") continue;
+            if (!cfg?.enabled || cfg.style === "none") continue;
             const cls = `ambient-anim-${areaKey}`;
-            if (node.matches?.(areaMeta.selector)) this.applyAnim(node, areaKey, cls);
-            node.querySelectorAll?.(areaMeta.selector).forEach(el => this.applyAnim(el, areaKey, cls));
+
+            // Tekil node kontrolü
+            if (node.matches?.(areaMeta.selector)) {
+                this.applyAnim(node, areaKey, cls, cfg.stagger, 0);
+            }
+
+            // Çocuk elemanlar kontrolü (stagger mantığı ile)
+            const children = node.querySelectorAll?.(areaMeta.selector);
+            if (children && children.length > 0) {
+                let index = 0;
+                children.forEach(el => {
+                    this.applyAnim(el, areaKey, cls, cfg.stagger, index);
+                    index++;
+                });
+            }
         }
     }
 
-    applyAnim(el, areaKey, cls) {
-        if (areaKey === "messages") {
-            if (el.classList.contains("amb-done")) return;
-            el.classList.add(cls);
-            el.addEventListener("animationend", ()=>{el.classList.remove(cls);el.classList.add("amb-done");}, {once:true});
-        } else {
-            el.classList.remove(cls);
-            void el.offsetWidth;
-            el.classList.add(cls);
-            el.addEventListener("animationend", ()=>el.classList.remove(cls), {once:true});
+    applyAnim(el, areaKey, cls, staggerMs = 0, index = 0) {
+        if (el.classList.contains("amb-done")) return;
+
+        el.classList.remove(cls);
+        void el.offsetWidth;
+        el.classList.add(cls);
+
+        if (staggerMs > 0 && index > 0) {
+            el.style.animationDelay = `${(parseFloat(el.style.animationDelay) || 0) + (staggerMs * index)}ms`;
         }
+
+        el.addEventListener("animationend", () => {
+            if (areaKey !== "messages" && staggerMs === 0) el.classList.remove(cls);
+            el.classList.add("amb-done");
+            el.style.animationDelay = '';
+        }, { once: true });
     }
 
     // ─── Update ──────────────────────────────────────────────────────────────────
 
-    async checkForUpdates(silent=false) {
+    async checkForUpdates(silent = false) {
         if (this.isCheckingForUpdates) return;
         this.isCheckingForUpdates = true;
         try {
-            const fs=require("fs"), path=require("path");
-            const addon=BdApi.Plugins.get(PLUGIN_NAME);
-            const fileName=addon?.filename||PLUGIN_FILE;
-            const targetPath=path.join(BdApi.Plugins.folder,fileName);
-            const localContent=fs.existsSync(targetPath)?fs.readFileSync(targetPath,"utf8"):"";
-            const currentVersion=addon?.version||this.getMetaValue(localContent,"version");
+            const fs = require("fs"), path = require("path");
+            const addon = BdApi.Plugins.get(PLUGIN_NAME);
+            const fileName = addon?.filename || PLUGIN_FILE;
+            const targetPath = path.join(BdApi.Plugins.folder, fileName);
+            const localContent = fs.existsSync(targetPath) ? fs.readFileSync(targetPath, "utf8") : "";
+            const currentVersion = addon?.version || this.getMetaValue(localContent, "version");
             if (!currentVersion) throw new Error("Local version could not be read.");
-            const response=await BdApi.Net.fetch(this.withCacheBuster(UPDATE_URL),{headers:{"Cache-Control":"no-cache","Pragma":"no-cache"},timeout:15000});
-            if (!response?.ok) throw new Error(`HTTP ${response?.status||"?"}`);
-            const remoteContent=await response.text();
-            const remoteName=this.getMetaValue(remoteContent,"name");
-            const remoteVersion=this.getMetaValue(remoteContent,"version");
-            this.validateUpdate(remoteContent,remoteName,remoteVersion);
-            if (!this.isNewerVersion(remoteVersion,currentVersion)) return;
-            const tempPath=targetPath+".download";
-            fs.writeFileSync(tempPath,remoteContent,"utf8");
-            fs.renameSync(tempPath,targetPath);
-            BdApi.UI?.showToast?.(`${PLUGIN_NAME} ${remoteVersion} downloaded. Reload Discord.`,{type:"success"});
-        } catch(err) {
-            if (!silent) console.error(`${PLUGIN_NAME} update check failed:`,err);
-        } finally { this.isCheckingForUpdates=false; }
+            const response = await BdApi.Net.fetch(this.withCacheBuster(UPDATE_URL), { headers: { "Cache-Control": "no-cache", "Pragma": "no-cache" }, timeout: 15000 });
+            if (!response?.ok) throw new Error(`HTTP ${response?.status || "?"}`);
+            const remoteContent = await response.text();
+            const remoteName = this.getMetaValue(remoteContent, "name");
+            const remoteVersion = this.getMetaValue(remoteContent, "version");
+            this.validateUpdate(remoteContent, remoteName, remoteVersion);
+            if (!this.isNewerVersion(remoteVersion, currentVersion)) return;
+            const tempPath = targetPath + ".download";
+            fs.writeFileSync(tempPath, remoteContent, "utf8");
+            fs.renameSync(tempPath, targetPath);
+            BdApi.UI?.showToast?.(`${PLUGIN_NAME} ${remoteVersion} downloaded. Reload Discord.`, { type: "success" });
+        } catch (err) {
+            if (!silent) console.error(`${PLUGIN_NAME} update check failed:`, err);
+        } finally { this.isCheckingForUpdates = false; }
     }
 
-    withCacheBuster(url){return url+(url.includes("?")?"&":"?")+"t="+Date.now();}
+    withCacheBuster(url) { return url + (url.includes("?") ? "&" : "?") + "t=" + Date.now(); }
 
-    validateUpdate(content,name,version){
-        if(name!==PLUGIN_NAME) throw new Error("Remote plugin name does not match.");
-        if(!version||!/^\d+(?:\.\d+){1,3}$/.test(version)) throw new Error("Remote plugin version is invalid.");
-        if(!content.includes("module.exports")) throw new Error("Remote file does not look like a plugin.");
-        if(content.length<1000) throw new Error("Remote file looks unexpectedly short.");
+    validateUpdate(content, name, version) {
+        if (name !== PLUGIN_NAME) throw new Error("Remote plugin name does not match.");
+        if (!version || !/^\d+(?:\.\d+){1,3}$/.test(version)) throw new Error("Remote plugin version is invalid.");
+        if (!content.includes("module.exports")) throw new Error("Remote file does not look like a plugin.");
+        if (content.length < 1000) throw new Error("Remote file looks unexpectedly short.");
     }
 
-    getMetaValue(content,key){const m=content.match(new RegExp("^\\s*\\*\\s*@"+key+"\\s+(.+)$","mi"));return m?m[1].trim():"";}
+    getMetaValue(content, key) { const m = content.match(new RegExp("^\\s*\\*\\s*@" + key + "\\s+(.+)$", "mi")); return m ? m[1].trim() : ""; }
 
-    isNewerVersion(remote,current){
-        const r=remote.split(".").map(p=>parseInt(p,10)||0);
-        const c=current.split(".").map(p=>parseInt(p,10)||0);
-        for(let i=0;i<Math.max(r.length,c.length);i++){const ri=r[i]||0,ci=c[i]||0;if(ri>ci)return true;if(ri<ci)return false;}
+    isNewerVersion(remote, current) {
+        const r = remote.split(".").map(p => parseInt(p, 10) || 0);
+        const c = current.split(".").map(p => parseInt(p, 10) || 0);
+        for (let i = 0; i < Math.max(r.length, c.length); i++) { const ri = r[i] || 0, ci = c[i] || 0; if (ri > ci) return true; if (ri < ci) return false; }
         return false;
     }
 
     // ─── CSS ─────────────────────────────────────────────────────────────────────
 
-    injectCSS(s=DEFAULT_SETTINGS){
-        const bp=`${s.blurStrength}px`, ibp=`${s.innerBlur}px`;
-        const sp=s.animationSpeed;
-        
+    injectCSS(s = DEFAULT_SETTINGS) {
+        const bp = `${s.blurStrength}px`, ibp = `${s.innerBlur}px`;
+        const sp = s.animationSpeed;
+
         // hideTypingIndicator CSS — sadece "typing" içeren class'ları hedef alır.
         // "dots", "avatar", "svg foreignObject" gibi geniş seçiciler KULLANILMAZ
         // çünkü Discord bu isimleri profil fotoğrafı ve sunucu simgelerinde de kullanır.
-        const typingCSS=s.hideTypingIndicator?`
+        const typingCSS = s.hideTypingIndicator ? `
             /* ── Chat alt alanı: "X yazıyor..." yazısı ve kapsayıcısı ── */
             [class*="typing"]{display:none!important;visibility:hidden!important;pointer-events:none!important;}
             [class*="typingIndicator"]{display:none!important;}
@@ -1350,9 +1691,9 @@ module.exports = class AmbientProfilePopouts {
             /* ── SVG mask ile gösterilen yazıyor simgesi (avatar üstü) ── */
             foreignObject[mask*="typing"]{display:none!important;}
             mask[id*="typing"]{display:none!important;}
-        `:"";
+        `: "";
 
-        BdApi.DOM.addStyle("AmbientProfileCSS",`
+        BdApi.DOM.addStyle("AmbientProfileCSS", `
             ${typingCSS}
         .ambient-profile-root{
             --ambient-base:114,137,218;--ambient-bright:153,170,255;--ambient-soft:230,235,255;
@@ -1366,10 +1707,10 @@ module.exports = class AmbientProfilePopouts {
         .ambient-profile-root [class*="userProfileInner_"],.ambient-profile-root [class*="profileInner_"],.ambient-profile-root [class*="overlayBackground_"]{background-color:rgba(8,8,12,.34)!important;background-image:none!important;backdrop-filter:blur(${ibp}) saturate(125%);}
         .ambient-profile-root [class*="userProfileInner_"]::before,.ambient-profile-root [class*="profileInner_"]::before{opacity:.18!important;}
         .ambient-profile-container{position:absolute;inset:0;border-radius:inherit;overflow:hidden;pointer-events:none;z-index:0;background:radial-gradient(circle at 18% 18%,rgba(var(--ambient-soft),.22),transparent 34%),radial-gradient(circle at 82% 12%,rgba(var(--ambient-bright),.20),transparent 32%),linear-gradient(135deg,rgba(var(--ambient-base),.16),transparent 54%);}
-        .ambient-glow-main{position:absolute;inset:-42%;background:radial-gradient(circle at 30% 35%,rgba(var(--ambient-base),.70),transparent 46%),radial-gradient(circle at 72% 70%,rgba(var(--ambient-bright),.38),transparent 42%),conic-gradient(from 120deg,rgba(var(--ambient-base),.12),rgba(var(--ambient-bright),.26),rgba(var(--ambient-soft),.10),rgba(var(--ambient-base),.12));background-size:150% 150%;filter:blur(30px) saturate(145%);opacity:${s.glowOpacity};animation:ambientGlowMove ${(18/sp).toFixed(1)}s ease-in-out infinite alternate;}
-        .ambient-glow-pop{position:absolute;top:18%;left:50%;width:92%;height:68%;transform:translate(-50%,-50%) scale(1);background:radial-gradient(circle,rgba(var(--ambient-bright),.58),transparent 58%);opacity:.48;filter:blur(42px);animation:neonPulse ${(9/sp).toFixed(1)}s ease-in-out infinite alternate;}
-        .ambient-glow-sheen{position:absolute;inset:-2px;background:linear-gradient(115deg,transparent 0%,rgba(255,255,255,.16) 38%,transparent 58%),linear-gradient(180deg,rgba(var(--ambient-soft),.10),transparent 42%);mix-blend-mode:screen;opacity:${s.sheenOpacity};animation:ambientSheen ${(12/sp).toFixed(1)}s ease-in-out infinite;}
-        .ambient-profile-root::after{content:'';position:absolute;inset:0;border-radius:inherit;padding:1px;background:linear-gradient(135deg,rgba(var(--ambient-soft),.34),rgba(var(--ambient-bright),var(--ambient-edge-alpha)) 34%,transparent 62%,rgba(var(--ambient-base),.34));background-size:200% 200%;-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;z-index:4;animation:borderRotate ${(7/sp).toFixed(1)}s linear infinite;}
+        .ambient-glow-main{position:absolute;inset:-42%;background:radial-gradient(circle at 30% 35%,rgba(var(--ambient-base),.70),transparent 46%),radial-gradient(circle at 72% 70%,rgba(var(--ambient-bright),.38),transparent 42%),conic-gradient(from 120deg,rgba(var(--ambient-base),.12),rgba(var(--ambient-bright),.26),rgba(var(--ambient-soft),.10),rgba(var(--ambient-base),.12));background-size:150% 150%;filter:blur(30px) saturate(145%);opacity:${s.glowOpacity};animation:ambientGlowMove ${(18 / sp).toFixed(1)}s ease-in-out infinite alternate;}
+        .ambient-glow-pop{position:absolute;top:18%;left:50%;width:92%;height:68%;transform:translate(-50%,-50%) scale(1);background:radial-gradient(circle,rgba(var(--ambient-bright),.58),transparent 58%);opacity:.48;filter:blur(42px);animation:neonPulse ${(9 / sp).toFixed(1)}s ease-in-out infinite alternate;}
+        .ambient-glow-sheen{position:absolute;inset:-2px;background:linear-gradient(115deg,transparent 0%,rgba(255,255,255,.16) 38%,transparent 58%),linear-gradient(180deg,rgba(var(--ambient-soft),.10),transparent 42%);mix-blend-mode:screen;opacity:${s.sheenOpacity};animation:ambientSheen ${(12 / sp).toFixed(1)}s ease-in-out infinite;}
+        .ambient-profile-root::after{content:'';position:absolute;inset:0;border-radius:inherit;padding:1px;background:linear-gradient(135deg,rgba(var(--ambient-soft),.34),rgba(var(--ambient-bright),var(--ambient-edge-alpha)) 34%,transparent 62%,rgba(var(--ambient-base),.34));background-size:200% 200%;-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;z-index:4;animation:borderRotate ${(7 / sp).toFixed(1)}s linear infinite;}
         .ambient-profile-tools{position:absolute;right:44px;top:10px;z-index:6;display:flex;align-items:center;gap:6px;padding:5px;border:1px solid rgba(var(--ambient-soft),.20);border-radius:10px;background:rgba(12,12,16,.50);box-shadow:0 10px 26px rgba(0,0,0,.30);backdrop-filter:blur(14px) saturate(145%);pointer-events:auto;}
         .ambient-profile-root[class*="userProfileModalOuter_"] .ambient-profile-tools,.ambient-profile-root[class*="profileOuter_"] .ambient-profile-tools{top:12px;right:56px;}
         .ambient-profile-tool{height:28px;min-width:34px;padding:0 9px;border:0;border-radius:7px;color:var(--interactive-active,#fff);background:rgba(255,255,255,.08);font-size:12px;font-weight:700;line-height:28px;cursor:pointer;transition:background 160ms,color 160ms,transform 160ms;}
@@ -1413,256 +1754,256 @@ module.exports = class AmbientProfilePopouts {
 
     // ─── Profile scanning ────────────────────────────────────────────────────────
 
-    scanExistingProfiles(){for(const p of document.querySelectorAll(PROFILE_SELECTORS))this.addAmbientGlow(p);}
-    findProfileRoots(node){const s=new Set();if(node.matches?.(PROFILE_SELECTORS))s.add(node);node.querySelectorAll?.(PROFILE_SELECTORS).forEach(p=>s.add(p));return s;}
+    scanExistingProfiles() { for (const p of document.querySelectorAll(PROFILE_SELECTORS)) this.addAmbientGlow(p); }
+    findProfileRoots(node) { const s = new Set(); if (node.matches?.(PROFILE_SELECTORS)) s.add(node); node.querySelectorAll?.(PROFILE_SELECTORS).forEach(p => s.add(p)); return s; }
 
-    addAmbientGlow(popout){
-        if(!popout)return;
-        if(popout.querySelector(".ambient-profile-container")){
+    addAmbientGlow(popout) {
+        if (!popout) return;
+        if (popout.querySelector(".ambient-profile-container")) {
             popout.classList.add("ambient-profile-root");
-            this.queueColorRefresh(popout);this.ensureProfileTools(popout);this.renderProfileTags(popout);this.polishSpotifyCards(popout);return;
+            this.queueColorRefresh(popout); this.ensureProfileTools(popout); this.renderProfileTags(popout); this.polishSpotifyCards(popout); return;
         }
-        setTimeout(()=>{
-            if(!document.body.contains(popout)||popout.querySelector(".ambient-profile-container"))return;
+        setTimeout(() => {
+            if (!document.body.contains(popout) || popout.querySelector(".ambient-profile-container")) return;
             popout.classList.add("ambient-profile-root");
-            const c=document.createElement("div");c.className="ambient-profile-container";
-            for(const cls of["ambient-glow-main","ambient-glow-pop","ambient-glow-sheen"]){const d=document.createElement("div");d.className=cls;c.appendChild(d);}
-            popout.insertBefore(c,popout.firstChild);
-            this.updateProfileColors(popout);this.ensureProfileTools(popout);this.renderProfileTags(popout);this.polishSpotifyCards(popout);
-        },180);
+            const c = document.createElement("div"); c.className = "ambient-profile-container";
+            for (const cls of ["ambient-glow-main", "ambient-glow-pop", "ambient-glow-sheen"]) { const d = document.createElement("div"); d.className = cls; c.appendChild(d); }
+            popout.insertBefore(c, popout.firstChild);
+            this.updateProfileColors(popout); this.ensureProfileTools(popout); this.renderProfileTags(popout); this.polishSpotifyCards(popout);
+        }, 180);
     }
 
-    queueColorRefresh(popout){
-        const t=this.colorRefreshTimers?.get(popout);if(t)clearTimeout(t);
-        this.colorRefreshTimers?.set(popout,setTimeout(()=>{this.colorRefreshTimers?.delete(popout);if(document.body.contains(popout))this.updateProfileColors(popout);},180));
+    queueColorRefresh(popout) {
+        const t = this.colorRefreshTimers?.get(popout); if (t) clearTimeout(t);
+        this.colorRefreshTimers?.set(popout, setTimeout(() => { this.colorRefreshTimers?.delete(popout); if (document.body.contains(popout)) this.updateProfileColors(popout); }, 180));
     }
 
-    updateProfileColors(p){this.applyFallbackColors(p);this.applyImageColors(p);}
+    updateProfileColors(p) { this.applyFallbackColors(p); this.applyImageColors(p); }
 
-    applyFallbackColors(popout){
-        const cs=getComputedStyle(popout);
-        const rgb=["--profile-gradient-primary-color","--profile-gradient-secondary-color","--brand-500","--background-accent","--interactive-active"].map(p=>this.parseCssColor(cs.getPropertyValue(p))).find(Boolean)||[114,137,218];
-        this.setAmbientColors(popout,rgb);
+    applyFallbackColors(popout) {
+        const cs = getComputedStyle(popout);
+        const rgb = ["--profile-gradient-primary-color", "--profile-gradient-secondary-color", "--brand-500", "--background-accent", "--interactive-active"].map(p => this.parseCssColor(cs.getPropertyValue(p))).find(Boolean) || [114, 137, 218];
+        this.setAmbientColors(popout, rgb);
     }
 
-    applyImageColors(popout){
-        const img=this.pickBestImage(popout);if(!img?.src)return;
-        const probe=new Image();probe.crossOrigin="Anonymous";
-        probe.onload=()=>{const rgb=this.sampleImageColor(probe);if(rgb)this.setAmbientColors(popout,rgb);};
-        probe.onerror=()=>{};probe.src=this.normalizeImageUrl(img.src);
+    applyImageColors(popout) {
+        const img = this.pickBestImage(popout); if (!img?.src) return;
+        const probe = new Image(); probe.crossOrigin = "Anonymous";
+        probe.onload = () => { const rgb = this.sampleImageColor(probe); if (rgb) this.setAmbientColors(popout, rgb); };
+        probe.onerror = () => { }; probe.src = this.normalizeImageUrl(img.src);
     }
 
-    pickBestImage(popout){
-        const imgs=Array.from(popout.querySelectorAll(IMAGE_SELECTORS)).filter(i=>i.src);
-        return imgs.find(i=>i.src.includes("i.scdn.co")||i.src.includes("spotify"))||imgs.find(i=>i.width>=64||i.height>=64)||imgs[0];
+    pickBestImage(popout) {
+        const imgs = Array.from(popout.querySelectorAll(IMAGE_SELECTORS)).filter(i => i.src);
+        return imgs.find(i => i.src.includes("i.scdn.co") || i.src.includes("spotify")) || imgs.find(i => i.width >= 64 || i.height >= 64) || imgs[0];
     }
 
-    normalizeImageUrl(src){
-        if(!src.includes("cdn.discordapp.com")&&!src.includes("media.discordapp.net"))return src;
-        return src.split("?")[0]+"?size=128";
+    normalizeImageUrl(src) {
+        if (!src.includes("cdn.discordapp.com") && !src.includes("media.discordapp.net")) return src;
+        return src.split("?")[0] + "?size=128";
     }
 
-    sampleImageColor(img){
-        try{
-            const c=document.createElement("canvas");c.width=c.height=12;
-            const ctx=c.getContext("2d",{willReadFrequently:true});ctx.drawImage(img,0,0,12,12);
-            const px=ctx.getImageData(0,0,12,12).data;let r=0,g=0,b=0,n=0;
-            for(let i=0;i<px.length;i+=4){if(px[i+3]<90)continue;const br=(px[i]+px[i+1]+px[i+2])/3;if(br<18||br>242)continue;r+=px[i];g+=px[i+1];b+=px[i+2];n++;}
-            return n?[Math.round(r/n),Math.round(g/n),Math.round(b/n)]:null;
-        }catch{return null;}
+    sampleImageColor(img) {
+        try {
+            const c = document.createElement("canvas"); c.width = c.height = 12;
+            const ctx = c.getContext("2d", { willReadFrequently: true }); ctx.drawImage(img, 0, 0, 12, 12);
+            const px = ctx.getImageData(0, 0, 12, 12).data; let r = 0, g = 0, b = 0, n = 0;
+            for (let i = 0; i < px.length; i += 4) { if (px[i + 3] < 90) continue; const br = (px[i] + px[i + 1] + px[i + 2]) / 3; if (br < 18 || br > 242) continue; r += px[i]; g += px[i + 1]; b += px[i + 2]; n++; }
+            return n ? [Math.round(r / n), Math.round(g / n), Math.round(b / n)] : null;
+        } catch { return null; }
     }
 
-    setAmbientColors(popout,rgb){
-        const base=this.boostColor(rgb);
-        popout.style.setProperty("--ambient-base",base.join(", "));
-        popout.style.setProperty("--ambient-bright",this.mixColor(base,[255,255,255],.28).join(", "));
-        popout.style.setProperty("--ambient-soft",this.mixColor(base,[255,255,255],.58).join(", "));
+    setAmbientColors(popout, rgb) {
+        const base = this.boostColor(rgb);
+        popout.style.setProperty("--ambient-base", base.join(", "));
+        popout.style.setProperty("--ambient-bright", this.mixColor(base, [255, 255, 255], .28).join(", "));
+        popout.style.setProperty("--ambient-soft", this.mixColor(base, [255, 255, 255], .58).join(", "));
     }
 
-    boostColor(rgb){const mx=Math.max(...rgb);const sc=mx<150?150/Math.max(mx,1):1;return rgb.map(v=>Math.max(36,Math.min(255,Math.round(v*sc))));}
-    mixColor(a,b,t){return a.map((v,i)=>Math.round(v+(b[i]-v)*t));}
+    boostColor(rgb) { const mx = Math.max(...rgb); const sc = mx < 150 ? 150 / Math.max(mx, 1) : 1; return rgb.map(v => Math.max(36, Math.min(255, Math.round(v * sc)))); }
+    mixColor(a, b, t) { return a.map((v, i) => Math.round(v + (b[i] - v) * t)); }
 
     // ─── Profile tools ───────────────────────────────────────────────────────────
 
-    ensureProfileTools(popout){
-        if(popout.querySelector(".ambient-profile-tools")){this.updateProfileTools(popout);return;}
-        const tools=document.createElement("div");tools.className="ambient-profile-tools";
-        const b=(l,t,fn)=>this.createToolButton(l,t,fn);
+    ensureProfileTools(popout) {
+        if (popout.querySelector(".ambient-profile-tools")) { this.updateProfileTools(popout); return; }
+        const tools = document.createElement("div"); tools.className = "ambient-profile-tools";
+        const b = (l, t, fn) => this.createToolButton(l, t, fn);
         tools.append(
-            b("ID","Copy user ID",()=>{const d=this.getProfileData(popout);d.id?this.copyText(d.id,"User ID copied."):this.toast("User ID not found.","error");}),
-            b("User","Copy username",()=>{const d=this.getProfileData(popout);d.username?this.copyText(d.username,"Username copied."):this.toast("Username not found.","error");}),
-            b("Link","Copy profile link",()=>{const d=this.getProfileData(popout);d.id?this.copyText(`https://discord.com/users/${d.id}`,"Profile link copied."):this.toast("Profile link needs a user ID.","error");}),
-            b("Song","Open Spotify link",()=>{const l=this.getSpotifyLink(popout);l?window.open(l,"_blank"):this.toast("Spotify link not found.","error");}),
-            b("Note","Private local note",()=>this.toggleNotePanel(popout)),
-            b("Tag","Private local tags",()=>this.toggleNotePanel(popout))
+            b("ID", "Copy user ID", () => { const d = this.getProfileData(popout); d.id ? this.copyText(d.id, "User ID copied.") : this.toast("User ID not found.", "error"); }),
+            b("User", "Copy username", () => { const d = this.getProfileData(popout); d.username ? this.copyText(d.username, "Username copied.") : this.toast("Username not found.", "error"); }),
+            b("Link", "Copy profile link", () => { const d = this.getProfileData(popout); d.id ? this.copyText(`https://discord.com/users/${d.id}`, "Profile link copied.") : this.toast("Profile link needs a user ID.", "error"); }),
+            b("Song", "Open Spotify link", () => { const l = this.getSpotifyLink(popout); l ? window.open(l, "_blank") : this.toast("Spotify link not found.", "error"); }),
+            b("Note", "Private local note", () => this.toggleNotePanel(popout)),
+            b("Tag", "Private local tags", () => this.toggleNotePanel(popout))
         );
-        popout.appendChild(tools);this.updateProfileTools(popout);
+        popout.appendChild(tools); this.updateProfileTools(popout);
     }
 
-    updateProfileTools(popout){
-        const d=this.getProfileData(popout);const tools=popout.querySelector(".ambient-profile-tools");if(!tools)return;
-        const [ci,cn,cl,sp]=tools.querySelectorAll(".ambient-profile-tool");
-        if(ci)ci.disabled=!d.id;if(cn)cn.disabled=!d.username;if(cl)cl.disabled=!d.id;if(sp)sp.disabled=!this.getSpotifyLink(popout);
+    updateProfileTools(popout) {
+        const d = this.getProfileData(popout); const tools = popout.querySelector(".ambient-profile-tools"); if (!tools) return;
+        const [ci, cn, cl, sp] = tools.querySelectorAll(".ambient-profile-tool");
+        if (ci) ci.disabled = !d.id; if (cn) cn.disabled = !d.username; if (cl) cl.disabled = !d.id; if (sp) sp.disabled = !this.getSpotifyLink(popout);
     }
 
-    createToolButton(label,title,onClick){
-        const b=document.createElement("button");b.className="ambient-profile-tool";b.type="button";b.textContent=label;b.title=title;
-        b.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();onClick();});return b;
+    createToolButton(label, title, onClick) {
+        const b = document.createElement("button"); b.className = "ambient-profile-tool"; b.type = "button"; b.textContent = label; b.title = title;
+        b.addEventListener("click", e => { e.preventDefault(); e.stopPropagation(); onClick(); }); return b;
     }
 
     // ─── Note panel ──────────────────────────────────────────────────────────────
 
-    toggleNotePanel(popout){
-        let p=popout.querySelector(".ambient-profile-note");if(!p)p=this.createNotePanel(popout);
-        p.hidden=!p.hidden;this.renderProfileTags(popout);if(!p.hidden)p.querySelector("textarea")?.focus();
+    toggleNotePanel(popout) {
+        let p = popout.querySelector(".ambient-profile-note"); if (!p) p = this.createNotePanel(popout);
+        p.hidden = !p.hidden; this.renderProfileTags(popout); if (!p.hidden) p.querySelector("textarea")?.focus();
     }
 
-    createNotePanel(popout){
-        const panel=document.createElement("div");panel.className="ambient-profile-note";panel.hidden=true;
-        const ta=document.createElement("textarea");ta.spellcheck=false;ta.placeholder="Private note for this profile...";
-        const ti=document.createElement("input");ti.className="ambient-profile-tag-input";ti.type="text";ti.spellcheck=false;ti.placeholder="tags: friend, staff, trade";
-        const tl=document.createElement("label");tl.className="ambient-profile-note-label";tl.textContent="Local tags";
-        const footer=document.createElement("div");footer.className="ambient-profile-note-footer";
-        const status=document.createElement("span");status.textContent="Saved locally";
-        const clear=document.createElement("button");clear.className="ambient-profile-note-clear";clear.type="button";clear.textContent="Clear";
-        footer.append(status,clear);panel.append(ta,tl,ti,footer);popout.appendChild(panel);
-        const refresh=()=>{const k=this.getNoteKey(popout);ta.value=k?this.getNotes()[k]||"":"";ti.value=k?(this.getTags()[k]||[]).join(", "):"";ta.disabled=ti.disabled=!k;status.textContent=k?"Saved locally":"Profile key not found";};
-        ta.addEventListener("input",()=>{const k=this.getNoteKey(popout);if(!k)return;const n=this.getNotes();const v=ta.value.trim();v?n[k]=ta.value:delete n[k];this.saveNotes(n);status.textContent="Saved";});
-        ti.addEventListener("input",()=>{const k=this.getNoteKey(popout);if(!k)return;const t=this.getTags();const v=this.parseTags(ti.value);v.length?t[k]=v:delete t[k];this.saveTags(t);this.renderProfileTags(popout);status.textContent="Saved";});
-        clear.addEventListener("click",()=>{const k=this.getNoteKey(popout);if(!k)return;const n=this.getNotes(),t=this.getTags();delete n[k];delete t[k];this.saveNotes(n);this.saveTags(t);ta.value=ti.value="";this.renderProfileTags(popout);status.textContent="Cleared";});
-        refresh();return panel;
+    createNotePanel(popout) {
+        const panel = document.createElement("div"); panel.className = "ambient-profile-note"; panel.hidden = true;
+        const ta = document.createElement("textarea"); ta.spellcheck = false; ta.placeholder = "Private note for this profile...";
+        const ti = document.createElement("input"); ti.className = "ambient-profile-tag-input"; ti.type = "text"; ti.spellcheck = false; ti.placeholder = "tags: friend, staff, trade";
+        const tl = document.createElement("label"); tl.className = "ambient-profile-note-label"; tl.textContent = "Local tags";
+        const footer = document.createElement("div"); footer.className = "ambient-profile-note-footer";
+        const status = document.createElement("span"); status.textContent = "Saved locally";
+        const clear = document.createElement("button"); clear.className = "ambient-profile-note-clear"; clear.type = "button"; clear.textContent = "Clear";
+        footer.append(status, clear); panel.append(ta, tl, ti, footer); popout.appendChild(panel);
+        const refresh = () => { const k = this.getNoteKey(popout); ta.value = k ? this.getNotes()[k] || "" : ""; ti.value = k ? (this.getTags()[k] || []).join(", ") : ""; ta.disabled = ti.disabled = !k; status.textContent = k ? "Saved locally" : "Profile key not found"; };
+        ta.addEventListener("input", () => { const k = this.getNoteKey(popout); if (!k) return; const n = this.getNotes(); const v = ta.value.trim(); v ? n[k] = ta.value : delete n[k]; this.saveNotes(n); status.textContent = "Saved"; });
+        ti.addEventListener("input", () => { const k = this.getNoteKey(popout); if (!k) return; const t = this.getTags(); const v = this.parseTags(ti.value); v.length ? t[k] = v : delete t[k]; this.saveTags(t); this.renderProfileTags(popout); status.textContent = "Saved"; });
+        clear.addEventListener("click", () => { const k = this.getNoteKey(popout); if (!k) return; const n = this.getNotes(), t = this.getTags(); delete n[k]; delete t[k]; this.saveNotes(n); this.saveTags(t); ta.value = ti.value = ""; this.renderProfileTags(popout); status.textContent = "Cleared"; });
+        refresh(); return panel;
     }
 
-    getProfileData(p){return{id:this.extractUserId(p),username:this.extractUsername(p)};}
+    getProfileData(p) { return { id: this.extractUserId(p), username: this.extractUsername(p) }; }
 
-    extractUserId(popout){
-        const vals=[];
-        popout.querySelectorAll("img[src],source[srcset],a[href]").forEach(el=>vals.push(el.src,el.srcset,el.href));
-        popout.querySelectorAll("[style]").forEach(el=>vals.push(el.getAttribute("style")));
-        for(const v of vals.filter(Boolean)){const m=String(v).match(/(?:avatars|banners)\/(\d{16,22})\//);if(m)return m[1];}
+    extractUserId(popout) {
+        const vals = [];
+        popout.querySelectorAll("img[src],source[srcset],a[href]").forEach(el => vals.push(el.src, el.srcset, el.href));
+        popout.querySelectorAll("[style]").forEach(el => vals.push(el.getAttribute("style")));
+        for (const v of vals.filter(Boolean)) { const m = String(v).match(/(?:avatars|banners)\/(\d{16,22})\//); if (m) return m[1]; }
         return "";
     }
 
-    extractUsername(popout){
-        for(const sel of['[class*="nickname_"]','[class*="username_"]','[class*="userTag_"]','h1','[aria-label*="profile"]']){
-            const el=popout.querySelector(sel);const text=el?.textContent?.trim();if(text&&text.length<=80)return text;
-            const label=el?.getAttribute?.("aria-label")?.trim();if(label&&label.length<=80)return label;
+    extractUsername(popout) {
+        for (const sel of ['[class*="nickname_"]', '[class*="username_"]', '[class*="userTag_"]', 'h1', '[aria-label*="profile"]']) {
+            const el = popout.querySelector(sel); const text = el?.textContent?.trim(); if (text && text.length <= 80) return text;
+            const label = el?.getAttribute?.("aria-label")?.trim(); if (label && label.length <= 80) return label;
         }
         return "";
     }
 
-    getSpotifyLink(p){return p.querySelector('a[href*="open.spotify.com"],a[href*="spotify.link"]')?.href||"";}
-    getNoteKey(p){const d=this.getProfileData(p);return d.id?`id:${d.id}`:d.username?`name:${d.username.toLowerCase()}`:""; }
-    getNotes(){return BdApi.Data.load(PLUGIN_NAME,"profileNotes")||{};}
-    saveNotes(n){BdApi.Data.save(PLUGIN_NAME,"profileNotes",n);}
-    getTags(){return BdApi.Data.load(PLUGIN_NAME,"profileTags")||{};}
-    saveTags(t){BdApi.Data.save(PLUGIN_NAME,"profileTags",t);}
-    parseTags(v){return Array.from(new Set(String(v).split(",").map(t=>t.trim()).filter(Boolean).map(t=>t.slice(0,20)))).slice(0,6);}
+    getSpotifyLink(p) { return p.querySelector('a[href*="open.spotify.com"],a[href*="spotify.link"]')?.href || ""; }
+    getNoteKey(p) { const d = this.getProfileData(p); return d.id ? `id:${d.id}` : d.username ? `name:${d.username.toLowerCase()}` : ""; }
+    getNotes() { return BdApi.Data.load(PLUGIN_NAME, "profileNotes") || {}; }
+    saveNotes(n) { BdApi.Data.save(PLUGIN_NAME, "profileNotes", n); }
+    getTags() { return BdApi.Data.load(PLUGIN_NAME, "profileTags") || {}; }
+    saveTags(t) { BdApi.Data.save(PLUGIN_NAME, "profileTags", t); }
+    parseTags(v) { return Array.from(new Set(String(v).split(",").map(t => t.trim()).filter(Boolean).map(t => t.slice(0, 20)))).slice(0, 6); }
 
-    renderProfileTags(popout){
+    renderProfileTags(popout) {
         popout.querySelector(".ambient-profile-tags")?.remove();
-        const panel=popout.querySelector(".ambient-profile-note");if(panel&&!panel.hidden)return;
-        const key=this.getNoteKey(popout);const tags=key?this.getTags()[key]||[]:[];if(!tags.length)return;
-        const row=document.createElement("div");row.className="ambient-profile-tags";
-        for(const tag of tags){const chip=document.createElement("span");chip.className="ambient-profile-tag";chip.textContent=chip.title=tag;row.appendChild(chip);}
+        const panel = popout.querySelector(".ambient-profile-note"); if (panel && !panel.hidden) return;
+        const key = this.getNoteKey(popout); const tags = key ? this.getTags()[key] || [] : []; if (!tags.length) return;
+        const row = document.createElement("div"); row.className = "ambient-profile-tags";
+        for (const tag of tags) { const chip = document.createElement("span"); chip.className = "ambient-profile-tag"; chip.textContent = chip.title = tag; row.appendChild(chip); }
         popout.appendChild(row);
     }
 
-    polishSpotifyCards(popout){
-        popout.querySelectorAll('img[src*="i.scdn.co"],img[src*="spotify"]').forEach(img=>{
-            const card=this.findSpotifyCard(img,popout);if(card)card.classList.add("ambient-spotify-card");
+    polishSpotifyCards(popout) {
+        popout.querySelectorAll('img[src*="i.scdn.co"],img[src*="spotify"]').forEach(img => {
+            const card = this.findSpotifyCard(img, popout); if (card) card.classList.add("ambient-spotify-card");
         });
     }
 
-    findSpotifyCard(img,popout){
-        let best=img.parentElement,cur=img.parentElement;
-        for(let i=0;i<8&&cur&&cur!==popout;i++){
-            const text=(cur.textContent||"").toLowerCase(),rect=cur.getBoundingClientRect?.();
-            if(text.includes("spotify")||text.includes("dinliyor")||(rect&&rect.width>220&&rect.height>70))best=cur;
-            cur=cur.parentElement;
+    findSpotifyCard(img, popout) {
+        let best = img.parentElement, cur = img.parentElement;
+        for (let i = 0; i < 8 && cur && cur !== popout; i++) {
+            const text = (cur.textContent || "").toLowerCase(), rect = cur.getBoundingClientRect?.();
+            if (text.includes("spotify") || text.includes("dinliyor") || (rect && rect.width > 220 && rect.height > 70)) best = cur;
+            cur = cur.parentElement;
         }
-        return best&&best!==img.parentElement?best:img.closest('[class*="activity_"],[class*="card_"],[class*="section_"]')||best;
+        return best && best !== img.parentElement ? best : img.closest('[class*="activity_"],[class*="card_"],[class*="section_"]') || best;
     }
 
     // ─── Message enhancements ────────────────────────────────────────────────────
 
-    scanExistingMessageEnhancements(){this.enhanceMessageNode(document);}
-    enhanceMessageNode(root){this.enhanceLinks(root);this.enhanceCodeBlocks(root);}
+    scanExistingMessageEnhancements() { this.enhanceMessageNode(document); }
+    enhanceMessageNode(root) { this.enhanceLinks(root); this.enhanceCodeBlocks(root); }
 
-    enhanceLinks(root){
-        const anchors=[];
-        if(root.matches?.("a[href]"))anchors.push(root);
-        root.querySelectorAll?.("a[href]").forEach(a=>anchors.push(a));
-        for(const a of anchors)this.enhanceLink(a);
+    enhanceLinks(root) {
+        const anchors = [];
+        if (root.matches?.("a[href]")) anchors.push(root);
+        root.querySelectorAll?.("a[href]").forEach(a => anchors.push(a));
+        for (const a of anchors) this.enhanceLink(a);
     }
 
-    enhanceLink(anchor){
-        if(anchor.classList.contains("ambient-enhanced-link"))return;
-        if(!anchor.closest(LINK_SCOPE_SELECTORS))return;
-        if(anchor.closest(".ambient-link-tools,.ambient-profile-tools,.ambient-profile-note"))return;
-        if(anchor.querySelector("img,video,canvas,svg"))return;
-        const url=this.parseHttpUrl(anchor.href);if(!url)return;
-        const domain=this.getDisplayDomain(url);if(!domain||domain==="discord.com")return;
-        const risk=this.getLinkRisk(url);
-        anchor.classList.add("ambient-enhanced-link");anchor.dataset.ambientDomain=domain;anchor.dataset.ambientRisk=risk;
-        const tools=document.createElement("span");tools.className="ambient-link-tools";tools.contentEditable="false";
-        const badge=document.createElement("span");badge.className="ambient-link-domain";badge.dataset.ambientRisk=risk;
-        badge.textContent=risk==="safe"?domain:`! ${domain}`;badge.title=this.getLinkRiskTitle(url,risk);
-        const copy=document.createElement("button");copy.className="ambient-link-copy";copy.type="button";copy.textContent="Copy";copy.title="Copy link";
-        copy.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();this.copyText(url.href,"Link copied.");});
-        tools.append(badge,copy);anchor.insertAdjacentElement("afterend",tools);
+    enhanceLink(anchor) {
+        if (anchor.classList.contains("ambient-enhanced-link")) return;
+        if (!anchor.closest(LINK_SCOPE_SELECTORS)) return;
+        if (anchor.closest(".ambient-link-tools,.ambient-profile-tools,.ambient-profile-note")) return;
+        if (anchor.querySelector("img,video,canvas,svg")) return;
+        const url = this.parseHttpUrl(anchor.href); if (!url) return;
+        const domain = this.getDisplayDomain(url); if (!domain || domain === "discord.com") return;
+        const risk = this.getLinkRisk(url);
+        anchor.classList.add("ambient-enhanced-link"); anchor.dataset.ambientDomain = domain; anchor.dataset.ambientRisk = risk;
+        const tools = document.createElement("span"); tools.className = "ambient-link-tools"; tools.contentEditable = "false";
+        const badge = document.createElement("span"); badge.className = "ambient-link-domain"; badge.dataset.ambientRisk = risk;
+        badge.textContent = risk === "safe" ? domain : `! ${domain}`; badge.title = this.getLinkRiskTitle(url, risk);
+        const copy = document.createElement("button"); copy.className = "ambient-link-copy"; copy.type = "button"; copy.textContent = "Copy"; copy.title = "Copy link";
+        copy.addEventListener("click", e => { e.preventDefault(); e.stopPropagation(); this.copyText(url.href, "Link copied."); });
+        tools.append(badge, copy); anchor.insertAdjacentElement("afterend", tools);
     }
 
-    parseHttpUrl(href){try{const u=new URL(href);return(u.protocol==="http:"||u.protocol==="https:")?u:null;}catch{return null;}}
-    getDisplayDomain(url){return url.hostname.replace(/^www\./i,"").toLowerCase();}
-    getLinkRisk(url){const d=this.getDisplayDomain(url);if(SUSPICIOUS_DOMAINS.has(d))return"danger";if(d.startsWith("xn--"))return"warn";if(/^\d{1,3}(?:\.\d{1,3}){3}$/.test(d))return"warn";if(d.split(".").length>3)return"warn";return"safe";}
-    getLinkRiskTitle(url,risk){if(risk==="danger")return`Risky shortener/logger style domain: ${url.href}`;if(risk==="warn")return`Check this domain before opening: ${url.href}`;return url.href;}
+    parseHttpUrl(href) { try { const u = new URL(href); return (u.protocol === "http:" || u.protocol === "https:") ? u : null; } catch { return null; } }
+    getDisplayDomain(url) { return url.hostname.replace(/^www\./i, "").toLowerCase(); }
+    getLinkRisk(url) { const d = this.getDisplayDomain(url); if (SUSPICIOUS_DOMAINS.has(d)) return "danger"; if (d.startsWith("xn--")) return "warn"; if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(d)) return "warn"; if (d.split(".").length > 3) return "warn"; return "safe"; }
+    getLinkRiskTitle(url, risk) { if (risk === "danger") return `Risky shortener/logger style domain: ${url.href}`; if (risk === "warn") return `Check this domain before opening: ${url.href}`; return url.href; }
 
-    enhanceCodeBlocks(root){
-        const blocks=[];if(root.matches?.("pre"))blocks.push(root);root.querySelectorAll?.("pre").forEach(b=>blocks.push(b));
-        for(const block of blocks){
-            if(!block.closest(LINK_SCOPE_SELECTORS))continue;if(block.classList.contains("ambient-enhanced-code"))continue;
-            const text=this.extractCodeText(block);if(!text)continue;
+    enhanceCodeBlocks(root) {
+        const blocks = []; if (root.matches?.("pre")) blocks.push(root); root.querySelectorAll?.("pre").forEach(b => blocks.push(b));
+        for (const block of blocks) {
+            if (!block.closest(LINK_SCOPE_SELECTORS)) continue; if (block.classList.contains("ambient-enhanced-code")) continue;
+            const text = this.extractCodeText(block); if (!text) continue;
             block.classList.add("ambient-enhanced-code");
-            const btn=document.createElement("button");btn.className="ambient-code-copy";btn.type="button";btn.textContent="Copy";btn.title="Copy code block";
-            btn.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();this.copyText(this.extractCodeText(block),"Code copied.");});
+            const btn = document.createElement("button"); btn.className = "ambient-code-copy"; btn.type = "button"; btn.textContent = "Copy"; btn.title = "Copy code block";
+            btn.addEventListener("click", e => { e.preventDefault(); e.stopPropagation(); this.copyText(this.extractCodeText(block), "Code copied."); });
             block.appendChild(btn);
         }
     }
 
-    extractCodeText(block){const code=block.querySelector("code");const src=code||block.cloneNode(true);src.querySelector?.(".ambient-code-copy")?.remove();return this.normalizeCopiedText(src.innerText||src.textContent||"");}
+    extractCodeText(block) { const code = block.querySelector("code"); const src = code || block.cloneNode(true); src.querySelector?.(".ambient-code-copy")?.remove(); return this.normalizeCopiedText(src.innerText || src.textContent || ""); }
 
-    handleShiftClickCopy(event){
-        if(!event.shiftKey||event.button!==0)return;if(this.isInteractiveTarget(event.target))return;
-        const msg=event.target?.closest?.('[id^="chat-messages-"],[class*="message_"]');
-        if(!msg||msg.closest('[class*="messagesPopout_"],[class*="searchResult_"]'))return;
-        const content=this.extractMessageText(msg);if(!content)return;
-        event.preventDefault();event.stopPropagation();this.copyText(content,"Message copied.");
+    handleShiftClickCopy(event) {
+        if (!event.shiftKey || event.button !== 0) return; if (this.isInteractiveTarget(event.target)) return;
+        const msg = event.target?.closest?.('[id^="chat-messages-"],[class*="message_"]');
+        if (!msg || msg.closest('[class*="messagesPopout_"],[class*="searchResult_"]')) return;
+        const content = this.extractMessageText(msg); if (!content) return;
+        event.preventDefault(); event.stopPropagation(); this.copyText(content, "Message copied.");
     }
 
-    isInteractiveTarget(target){return Boolean(target?.closest?.("a,button,input,textarea,select,[role='button'],[contenteditable='true'],.ambient-profile-tools,.ambient-profile-note"));}
+    isInteractiveTarget(target) { return Boolean(target?.closest?.("a,button,input,textarea,select,[role='button'],[contenteditable='true'],.ambient-profile-tools,.ambient-profile-note")); }
 
-    extractMessageText(message){
-        const c=message.querySelector('[class*="messageContent_"]');
-        if(c)return this.normalizeCopiedText(c.innerText||c.textContent||"");
-        return Array.from(message.querySelectorAll('[class*="markup_"],[class*="embedDescription_"],[class*="embedTitle_"]')).map(el=>this.normalizeCopiedText(el.innerText||el.textContent||"")).filter(Boolean).join("\n");
+    extractMessageText(message) {
+        const c = message.querySelector('[class*="messageContent_"]');
+        if (c) return this.normalizeCopiedText(c.innerText || c.textContent || "");
+        return Array.from(message.querySelectorAll('[class*="markup_"],[class*="embedDescription_"],[class*="embedTitle_"]')).map(el => this.normalizeCopiedText(el.innerText || el.textContent || "")).filter(Boolean).join("\n");
     }
 
-    normalizeCopiedText(text){return text.replace(/\u200B/g,"").replace(/\n{3,}/g,"\n\n").trim();}
+    normalizeCopiedText(text) { return text.replace(/\u200B/g, "").replace(/\n{3,}/g, "\n\n").trim(); }
 
-    async copyText(text,message){
-        try{await navigator.clipboard.writeText(text);}
-        catch{const ta=document.createElement("textarea");ta.value=text;ta.style.cssText="position:fixed;opacity:0;";document.body.appendChild(ta);ta.select();document.execCommand("copy");ta.remove();}
-        this.toast(message,"success");
+    async copyText(text, message) {
+        try { await navigator.clipboard.writeText(text); }
+        catch { const ta = document.createElement("textarea"); ta.value = text; ta.style.cssText = "position:fixed;opacity:0;"; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); ta.remove(); }
+        this.toast(message, "success");
     }
 
-    toast(message,type="info"){BdApi.UI?.showToast?.(message,{type});}
+    toast(message, type = "info") { BdApi.UI?.showToast?.(message, { type }); }
 
-    parseCssColor(value){
-        if(!value||value.includes("transparent"))return null;
-        const m=value.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);if(m)return m.slice(1,4).map(Number);
-        const h=value.trim().match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);if(!h)return null;
-        const hex=h[1].length===3?h[1].split("").map(c=>c+c).join(""):h[1];
-        return[0,2,4].map(i=>parseInt(hex.slice(i,i+2),16));
+    parseCssColor(value) {
+        if (!value || value.includes("transparent")) return null;
+        const m = value.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i); if (m) return m.slice(1, 4).map(Number);
+        const h = value.trim().match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i); if (!h) return null;
+        const hex = h[1].length === 3 ? h[1].split("").map(c => c + c).join("") : h[1];
+        return [0, 2, 4].map(i => parseInt(hex.slice(i, i + 2), 16));
     }
 };
