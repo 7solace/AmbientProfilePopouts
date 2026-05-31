@@ -1,7 +1,7 @@
 /**
  * @name AmbientProfilePopouts
  * @author s7lace
- * @version 1.6.0
+ * @version 1.6.7
  * @description Adds adaptive ambient glow, profile tools, and per-area animation system to Discord with a premium live-preview settings dashboard. animasyon stilleri ve hızları için canlı önizleme sistemi içeren gelişmiş bir profil kartı eklentisi.
  * @updateUrl https://raw.githubusercontent.com/7solace/AmbientProfilePopouts/main/AmbientProfilePopouts.plugin.js
  * @downloadUrl https://raw.githubusercontent.com/7solace/AmbientProfilePopouts/main/AmbientProfilePopouts.plugin.js
@@ -22,7 +22,7 @@ const PROFILE_SELECTORS = [
 const IMAGE_SELECTORS = [
     'img[src*="i.scdn.co"]', 'img[src*="spotify"]',
     'svg foreignObject img', 'img[class*="avatar"]',
-    '[class*="avatar_"] img', '[class*="banner_\"] img', '[class*="profileBanner_\"] img'
+    '[class*="avatar_"] img', '[class*="banner_"] img', '[class*="profileBanner_"] img'
 ].join(",");
 
 const LINK_SCOPE_SELECTORS = [
@@ -72,29 +72,42 @@ const ANIM_AREAS = {
     statusBar: { label: "Durum Çubuğu", selector: '[class*="panels_"] > [class*="container_"]' }
 };
 
+const LAYOUT_ANIM_AREAS = new Set([
+    "channelSwitch", "serverSwitch", "sidebar", "memberSidebar",
+    "channelList", "memberList", "searchResults", "userProfile", "statusBar"
+]);
+
 const DEFAULT_SETTINGS = {
-    blurStrength: 22,
-    panelAlpha: 0.62,
+    blurStrength: 8,
+    panelAlpha: 0.22,
     glowOpacity: 0.82,
-    innerBlur: 8,
+    innerBlur: 4,
     sheenOpacity: 0.62,
     edgeAlpha: 0.52,
-    animationSpeed: 1.0,
+    globalGlassSurfaces: false,
+    glassSaturation: 120,
+    glassDarkness: 0.34,
+    animationSpeed: 1.5,
+    motionQuality: "balanced",
+    quickPreview: true,
+    respectReducedMotion: true,
+    layoutAnimationsEnabled: false,
+    maxAnimatedChildren: 36,
     hideTypingIndicator: false,
     invisibleTyping: false,
     activePreset: "default",
     anim: {
-        messages: { style: "slide-up", duration: 320, enabled: true, delay: 0, stagger: 0 },
+        messages: { style: "fade", duration: 320, enabled: true, delay: 0, stagger: 0 },
         channelSwitch: { style: "fade", duration: 260, enabled: true, delay: 0, stagger: 0 },
-        serverSwitch: { style: "scale", duration: 280, enabled: true, delay: 0, stagger: 0 },
-        sidebar: { style: "slide-left", duration: 300, enabled: true, delay: 0, stagger: 0 },
-        memberSidebar: { style: "slide-right", duration: 280, enabled: true, delay: 0, stagger: 0 },
-        modals: { style: "spring", duration: 380, enabled: true, delay: 0, stagger: 0 },
-        emojiPicker: { style: "scale", duration: 220, enabled: true, delay: 0, stagger: 0 },
-        toasts: { style: "slide-right", duration: 300, enabled: true, delay: 0, stagger: 0 },
-        contextMenu: { style: "scale", duration: 180, enabled: true, delay: 0, stagger: 0 },
-        channelList: { style: "fade", duration: 250, enabled: true, delay: 0, stagger: 30 },
-        memberList: { style: "fade", duration: 250, enabled: true, delay: 0, stagger: 30 },
+        serverSwitch: { style: "fade", duration: 120, enabled: false, delay: 0, stagger: 0 },
+        sidebar: { style: "fade", duration: 210, enabled: false, delay: 0, stagger: 0 },
+        memberSidebar: { style: "fade", duration: 180, enabled: false, delay: 0, stagger: 0 },
+        modals: { style: "fade", duration: 400, enabled: true, delay: 0, stagger: 0 },
+        emojiPicker: { style: "fade", duration: 220, enabled: true, delay: 0, stagger: 0 },
+        toasts: { style: "fade", duration: 300, enabled: true, delay: 0, stagger: 0 },
+        contextMenu: { style: "fade", duration: 230, enabled: true, delay: 0, stagger: 0 },
+        channelList: { style: "fade", duration: 250, enabled: false, delay: 0, stagger: 30 },
+        memberList: { style: "fade", duration: 250, enabled: false, delay: 0, stagger: 30 },
         searchResults: { style: "slide-up", duration: 300, enabled: true, delay: 0, stagger: 50 },
         userProfile: { style: "zoom-in", duration: 400, enabled: true, delay: 0, stagger: 0 },
         statusBar: { style: "slide-up", duration: 200, enabled: true, delay: 0, stagger: 0 },
@@ -375,10 +388,10 @@ module.exports = class AmbientProfilePopouts {
         const modalContainer = document.createElement("div");
         modalContainer.className = "amb-modal-container";
         modalContainer.style.cssText = `
-            width: 95vw;
-            height: 95vh;
-            min-width: 1400px;
-            min-height: 900px;
+            width: min(1480px, 96vw);
+            height: min(920px, 94vh);
+            min-width: 0;
+            min-height: 0;
             background: #2b2d31;
             border-radius: 12px;
             overflow: hidden;
@@ -471,10 +484,20 @@ module.exports = class AmbientProfilePopouts {
     position: relative;
 }
 
+            .amb-modal-container {
+                box-shadow: 0 24px 80px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.06);
+            }
+            .amb-modal-btn:disabled,
+            .amb-toggle-btn:disabled,
+            .amb-style-btn:disabled {
+                opacity: .55;
+                cursor: not-allowed;
+                transform: none !important;
+            }
             
             /* Sidebar */
             .amb-sidebar {
-                width: 320px;
+                width: clamp(220px, 22vw, 320px);
                 padding: 20px;
                 background: #1e1f22;
                 border-right: 1px solid #1f2023;
@@ -544,10 +567,11 @@ module.exports = class AmbientProfilePopouts {
             /* Animation Style Cards */
             .amb-style-card {
                 background: linear-gradient(135deg, #2b2d31 0%, #232428 100%); 
-                border: 1px solid #1f2023; border-radius: 12px; 
+                border: 1px solid #1f2023; border-radius: 8px; 
                 padding: 20px; display: flex; flex-direction: column; gap: 12px; 
                 transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer;
                 box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+                min-width: 0;
             }
             .amb-style-card:hover { 
                 border-color: #5865f2; 
@@ -563,7 +587,7 @@ module.exports = class AmbientProfilePopouts {
             .amb-style-preview {
                 height: 140px;
                 background: linear-gradient(135deg, #1e1f22 0%, #2b2d31 100%); 
-                border-radius: 12px; display: flex; align-items: center; justify-content: center;
+                border-radius: 8px; display: flex; align-items: center; justify-content: center;
                 border: 1px solid #1f2023; perspective: 600px;
                 overflow: hidden;
                 position: relative;
@@ -583,9 +607,54 @@ module.exports = class AmbientProfilePopouts {
                 border-radius: 8px; opacity: 0;
                 box-shadow: 0 4px 20px rgba(88,101,242,0.4);
             }
+            .amb-preview-toolbar {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 12px;
+                margin: 0 0 18px;
+                padding: 12px;
+                background: #232428;
+                border: 1px solid #1f2023;
+                border-radius: 8px;
+            }
+            .amb-preview-toolbar-title {
+                font-size: 13px;
+                font-weight: 700;
+                color: #dbdee1;
+            }
+            .amb-preview-toolbar-sub {
+                margin-top: 3px;
+                font-size: 12px;
+                color: #949ba4;
+            }
+            .amb-segmented {
+                display: flex;
+                gap: 4px;
+                padding: 4px;
+                background: #1e1f22;
+                border: 1px solid #111214;
+                border-radius: 8px;
+            }
+            .amb-segmented button {
+                border: 0;
+                border-radius: 6px;
+                padding: 7px 10px;
+                color: #b5bac1;
+                background: transparent;
+                font-size: 12px;
+                font-weight: 700;
+                cursor: pointer;
+            }
+            .amb-segmented button.active {
+                color: #fff;
+                background: #5865f2;
+            }
             
             .amb-style-name { font-size: 14px; font-weight: 600; color: #dbdee1; text-align: center; }
             .amb-style-desc { font-size: 12px; color: #949ba4; text-align: center; margin-top: 4px; line-height: 1.3; }
+            .amb-active-badges { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-top: 8px; }
+            .amb-badge { font-size: 10px; font-weight: 600; color: #fff; background: linear-gradient(135deg, #5865f2 0%, #4752c4 100%); padding: 2px 8px; border-radius: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
             .amb-style-actions { display: flex; gap: 8px; justify-content: center; margin-top: 4px; }
             .amb-style-btn {
                 width: 32px; height: 32px; border: 0; border-radius: 4px; cursor: pointer;
@@ -681,6 +750,69 @@ module.exports = class AmbientProfilePopouts {
             }
             .amb-select-el:hover { border-color: #5865f2; }
             .amb-select-el option { background: #1e1f22; color: #dbdee1; }
+            .amb-style-select {
+                background: linear-gradient(135deg, #2b2d31 0%, #232428 100%);
+                border: 1px solid #1f2023;
+                border-radius: 8px;
+                color: #dbdee1;
+                padding: 10px 14px;
+                font-size: 13px;
+                font-weight: 600;
+                cursor: pointer;
+                outline: none;
+                width: 100%;
+                transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            }
+            .amb-style-select:hover {
+                border-color: #5865f2;
+                box-shadow: 0 4px 12px rgba(88, 101, 242, 0.2);
+            }
+            .amb-style-select option {
+                background: #1e1f22;
+                color: #dbdee1;
+                padding: 8px;
+            }
+            .amb-style-bar {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 6px;
+                padding: 8px;
+                background: linear-gradient(135deg, #2b2d31 0%, #232428 100%);
+                border: 1px solid #1f2023;
+                border-radius: 8px;
+                overflow-x: auto;
+                overflow-y: hidden;
+                max-height: 80px;
+            }
+            .amb-style-bar::-webkit-scrollbar { width: 6px; height: 6px; }
+            .amb-style-bar::-webkit-scrollbar-track { background: #2b2d31; }
+            .amb-style-bar::-webkit-scrollbar-thumb { background: #1a1b1e; border-radius: 3px; }
+            .amb-style-item {
+                flex-shrink: 0;
+                padding: 6px 12px;
+                border-radius: 6px;
+                background: #3f4147;
+                color: #b5bac1;
+                font-size: 11px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+                border: 1px solid transparent;
+                white-space: nowrap;
+            }
+            .amb-style-item:hover {
+                background: #4f545c;
+                color: #dbdee1;
+                transform: translateY(-1px);
+                border-color: #5865f2;
+            }
+            .amb-style-item.active {
+                background: linear-gradient(135deg, #5865f2 0%, #4752c4 100%);
+                color: #fff;
+                border-color: #5865f2;
+                box-shadow: 0 2px 8px rgba(88, 101, 242, 0.3);
+            }
             
             .amb-btn-reset {
                 padding: 10px 16px; border: 1px solid #ed4245; border-radius: 4px; 
@@ -690,6 +822,21 @@ module.exports = class AmbientProfilePopouts {
             }
             .amb-btn-reset:hover { 
                 background: #ed4245; color: #fff;
+            }
+            @media (max-width: 980px) {
+                .amb-settings-panel { flex-direction: column; }
+                .amb-sidebar {
+                    width: auto;
+                    max-height: 160px;
+                    border-right: 0;
+                    border-bottom: 1px solid #1f2023;
+                    flex-direction: row;
+                    flex-wrap: wrap;
+                }
+                .amb-sidebar-item { padding: 9px 12px; }
+                .amb-main-content { padding: 20px; }
+                .amb-anim-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+                .amb-preview-toolbar { align-items: stretch; flex-direction: column; }
             }
         `;
         wrap.appendChild(styleBlock);
@@ -744,7 +891,18 @@ module.exports = class AmbientProfilePopouts {
         homeSection.innerHTML = `
             <h2 class="amb-section-title">AmbientProfilePopouts</h2>
             <p class="amb-section-desc">Discord için gelişmiş animasyon ve profil efektleri eklentisi. Sol menüden farklı kategorilere geçerek animasyon stillerini test edebilirsiniz.</p>
-            
+            <div class="amb-preview-toolbar">
+                <div>
+                    <div class="amb-preview-toolbar-title">Canli onizleme</div>
+                    <div class="amb-preview-toolbar-sub">Kartlarin uzerine gelince animasyon otomatik oynar; kalite modu Discord icindeki animasyon yogunlugunu belirler.</div>
+                </div>
+                <div class="amb-segmented" id="motionQualityPicker">
+                    <button type="button" data-quality="performance">Performans</button>
+                    <button type="button" data-quality="balanced">Dengeli</button>
+                    <button type="button" data-quality="cinematic">Sinematik</button>
+                </div>
+            </div>
+
             <h3 style="font-size:18px; font-weight:700; color:#fff; margin:24px 0 16px;">🎬 Tüm Animasyon Stilleri</h3>
             <div class="amb-anim-grid" id="allAnimGrid"></div>
         `;
@@ -848,6 +1006,21 @@ module.exports = class AmbientProfilePopouts {
                 contextMenu: "Sağ tık menülerinin açılış animasyonu"
             };
 
+            Object.assign(areaLabels, {
+                channelList: "Kanal & DM Listesi",
+                memberList: "Uye Listesi",
+                searchResults: "Arama Sonuclari",
+                userProfile: "Profil Kartlari",
+                statusBar: "Alt Kullanici Paneli"
+            });
+            Object.assign(areaDescriptions, {
+                channelList: "Kanal listesi ve DM satirlari. Cok hareketli hissettirebildigi icin layout toggle kapaliyken calismaz.",
+                memberList: "Sag uye listesi satirlari. Layout toggle kapaliyken calismaz.",
+                searchResults: "Arama sonuclari ve gruplari. Layout toggle kapaliyken calismaz.",
+                userProfile: "Profil kartlari. Layout toggle kapaliyken calismaz.",
+                statusBar: "Sol alttaki kullanici paneli. Layout toggle kapaliyken calismaz."
+            });
+
             // Create settings for each area
             for (const [areaKey, areaLabel] of Object.entries(areaLabels)) {
                 if (cur.anim[areaKey]) {
@@ -856,6 +1029,8 @@ module.exports = class AmbientProfilePopouts {
                     const currentDuration = cur.anim[areaKey].duration || 300;
                     const isApplied = cur.anim[areaKey].style === style;
                     const isEnabled = cur.anim[areaKey].enabled !== false;
+                    const isLayoutArea = LAYOUT_ANIM_AREAS.has(areaKey);
+                    const isLayoutBlocked = isLayoutArea && !cur.layoutAnimationsEnabled;
 
                     // Area-specific preview design
                     const getAreaPreviewHTML = (area) => {
@@ -869,18 +1044,31 @@ module.exports = class AmbientProfilePopouts {
                     const currentDelay = cur.anim[areaKey].delay || 0;
                     const currentStagger = cur.anim[areaKey].stagger || 0;
 
+                    const currentStyle = cur.anim[areaKey].style || 'none';
+                    const currentStyleLabel = currentStyle === 'none' ? 'Kapalı' : (ANIM_STYLE_LABELS[currentStyle] || currentStyle);
+                    
                     areaSettings.innerHTML = `
                         <div class="amb-setter-top">
                             <span class="amb-setter-lbl">${areaLabel}</span>
                             <div style="display: flex; align-items: center; gap: 12px;">
-                                <span class="amb-setter-val" id="val-${areaKey}">${currentDuration}ms ✓</span>
+                                <span class="amb-style-badge" style="font-size: 11px; font-weight: 600; color: #fff; background: linear-gradient(135deg, #5865f2 0%, #4752c4 100%); padding: 3px 10px; border-radius: 12px; text-transform: uppercase; letter-spacing: 0.5px;">${currentStyleLabel}</span>
                                 <button class="amb-toggle-btn area-toggle-btn" data-area="${areaKey}" style="width: 40px; height: 20px; border: 0; border-radius: 10px; cursor: pointer; position: relative; transition: all 0.2s ease; background: ${isEnabled ? '#5865f2' : '#4e5058'};">
                                     <span class="amb-toggle-dot" style="position: absolute; top: 2px; left: ${isEnabled ? '20px' : '2px'}; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: all 0.2s ease; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"></span>
                                 </button>
                             </div>
                         </div>
                         <div class="amb-setter-desc">${areaDescriptions[areaKey] || ''}</div>
-                        <div class="amb-setter-subdesc" id="desc-${areaKey}" style="font-size: 12px; color: #949ba4; margin-top: 4px;">${isEnabled ? (isApplied ? 'Bu animasyon şu an bu alana uygulanmış.' : 'Hız ayarlayın ve uygula butonuna basın.') : 'Bu animasyon kapalı. Toggle butonuna basarak açın.'}</div>
+                        <div class="amb-setter-subdesc" id="desc-${areaKey}" style="font-size: 12px; color: ${isLayoutBlocked ? '#ffd166' : '#949ba4'}; margin-top: 4px;">${isLayoutBlocked ? 'Layout animasyonlari kapali oldugu icin bu alan Discord icinde oynatilmaz. Ayarlar > Genis Layout Animasyonlari ile acabilirsin.' : (isEnabled ? (isApplied ? 'Bu animasyon su an bu alana uygulanmis.' : 'Onizleyebilir veya bu stili alana uygulayabilirsin.') : 'Bu animasyon kapali. Toggle butonuna basarak acin.')}</div>
+                        
+                        <div style="margin-top: 12px;">
+                            <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+                                <span style="font-size:12px; font-weight:600; color:#b5bac1;">Animasyon Stili</span>
+                            </div>
+                            <div class="amb-style-bar" data-area="${areaKey}" ${!isEnabled ? 'style="opacity:0.5; pointer-events:none;"' : ''}>
+                                ${ANIM_STYLES.map(s => `<div class="amb-style-item ${currentStyle === s ? 'active' : ''}" data-style="${s}" title="${ANIM_STYLE_LABELS[s] || s}">${ANIM_STYLE_LABELS[s] || s}</div>`).join('')}
+                            </div>
+                        </div>
+                        
                         ${getAreaPreviewHTML(areaKey)}
                         
                         <div style="margin-top: 16px;">
@@ -908,7 +1096,7 @@ module.exports = class AmbientProfilePopouts {
                         </div>
 
                         <div style="display: flex; gap: 8px; margin-top: 16px;">
-                            <button class="amb-modal-btn amb-modal-btn-primary apply-anim-btn" data-area="${areaKey}" style="flex: 1;" ${!isEnabled ? 'disabled' : ''}>${isApplied ? 'Uygulandı' : 'Uygula'}</button>
+                            <button class="amb-modal-btn amb-modal-btn-primary apply-anim-btn" data-area="${areaKey}" style="flex: 1;" ${!isEnabled ? 'disabled' : ''}>${isApplied ? 'Bu stil aktif' : 'Bu stili uygula'}</button>
                             <button class="amb-modal-btn amb-modal-btn-secondary preview-area-btn" data-area="${areaKey}" style="flex: 1;" ${!isEnabled ? 'disabled' : ''}>Önizle</button>
                         </div>
                     `;
@@ -943,6 +1131,7 @@ module.exports = class AmbientProfilePopouts {
                     const applyBtn = animDetailSettings.querySelector(`.apply-anim-btn[data-area="${areaKey}"]`);
                     const previewBtn = animDetailSettings.querySelector(`.preview-area-btn[data-area="${areaKey}"]`);
                     const subdesc = animDetailSettings.querySelector(`#desc-${areaKey}`);
+                    const styleBar = animDetailSettings.querySelector(`.amb-style-bar[data-area="${areaKey}"]`);
 
                     const st = cur.anim[areaKey].enabled;
                     slider.disabled = !st;
@@ -950,6 +1139,10 @@ module.exports = class AmbientProfilePopouts {
                     if (staggerSlider) staggerSlider.disabled = !st;
                     applyBtn.disabled = !st;
                     previewBtn.disabled = !st;
+                    if (styleBar) {
+                        styleBar.style.opacity = st ? '1' : '0.5';
+                        styleBar.style.pointerEvents = st ? 'auto' : 'none';
+                    }
 
                     if (st) {
                         subdesc.textContent = cur.anim[areaKey].style === style ? 'Bu animasyon şu an bu alana uygulanmış.' : 'Hız ayarlayın ve uygula butonuna basın.';
@@ -958,6 +1151,39 @@ module.exports = class AmbientProfilePopouts {
                     }
 
                     this.toast(`${areaLabel} animasyonu ${st ? 'açık' : 'kapalı'}.`, "success");
+                });
+            });
+
+            // Style bar event listeners
+            animDetailSettings.querySelectorAll('.amb-style-bar').forEach(bar => {
+                bar.querySelectorAll('.amb-style-item').forEach(item => {
+                    item.addEventListener('click', (e) => {
+                        const areaKey = bar.dataset.area;
+                        const newStyle = e.target.dataset.style;
+                        const cur = this.getSettings();
+                        cur.anim[areaKey].style = newStyle;
+                        this.saveSettings(cur);
+                        this.applySettingsToCSS(cur);
+                        
+                        // Update active state
+                        bar.querySelectorAll('.amb-style-item').forEach(i => i.classList.remove('active'));
+                        e.target.classList.add('active');
+                        
+                        // Update badge
+                        const badge = bar.parentElement.parentElement.querySelector('.amb-style-badge');
+                        if (badge) {
+                            const newStyleLabel = newStyle === 'none' ? 'Kapalı' : (ANIM_STYLE_LABELS[newStyle] || newStyle);
+                            badge.textContent = newStyleLabel;
+                        }
+                        
+                        // Update description
+                        const subdesc = animDetailSettings.querySelector(`#desc-${areaKey}`);
+                        if (subdesc) {
+                            subdesc.textContent = 'Hız ayarlayın ve uygula butonuna basın.';
+                        }
+                        
+                        this.toast(`Animasyon stili değiştirildi: ${ANIM_STYLE_LABELS[newStyle] || newStyle}`, "success");
+                    });
                 });
             });
 
@@ -1000,7 +1226,7 @@ module.exports = class AmbientProfilePopouts {
                     this.saveSettings(cur);
                     this.applySettingsToCSS(cur);
 
-                    e.currentTarget.textContent = 'Uygulandı';
+                    e.currentTarget.textContent = 'Bu stil aktif';
                     e.currentTarget.style.background = 'linear-gradient(135deg, #3ba55c, #2d7d46)';
 
                     const valSpan = animDetailSettings.querySelector(`#val-${areaKey}`);
@@ -1027,38 +1253,7 @@ module.exports = class AmbientProfilePopouts {
                         previewElements.forEach(el => el.style.opacity = "0");
                         return;
                     }
-
-                    const easingMap = {
-                        "spring": "cubic-bezier(.34,1.56,.64,1)",
-                        "bounce": "cubic-bezier(.68,-0.55,.265,1.55)",
-                        "elastic": "cubic-bezier(.68,-0.6,.32,1.6)",
-                        "jelly": "cubic-bezier(.68,-0.55,.265,1.55)",
-                        "pop": "cubic-bezier(.68,-0.55,.265,1.55)",
-                        "shake": "cubic-bezier(.36,.07,.19,.97)",
-                        "fade": "cubic-bezier(.4,0,.2,1)",
-                        "slide-up": "cubic-bezier(.25,1,.5,1)",
-                        "slide-down": "cubic-bezier(.25,1,.5,1)",
-                        "slide-left": "cubic-bezier(.25,1,.5,1)",
-                        "slide-right": "cubic-bezier(.25,1,.5,1)",
-                        "scale": "cubic-bezier(.34,1.56,.64,1)",
-                        "blur": "cubic-bezier(.4,0,.2,1)",
-                        "flip": "cubic-bezier(.68,-0.55,.265,1.55)",
-                        "rotate": "cubic-bezier(.68,-0.55,.265,1.55)",
-                        "pulse": "cubic-bezier(.4,0,.6,1)",
-                        "zoom-in": "cubic-bezier(.34,1.56,.64,1)",
-                        "zoom-out": "cubic-bezier(.34,1.56,.64,1)",
-                        "slide-fade": "cubic-bezier(.25,1,.5,1)"
-                    };
-                    const easing = easingMap[style] || "cubic-bezier(.22,.68,0,1.2)";
-
-                    // Apply animation to preview element(s)
-                    previewElements.forEach(el => { el.style.animation = "none"; });
-                    if (previewElements.length > 0) void previewElements[0].offsetWidth;
-
-                    previewElements.forEach((el, index) => {
-                        el.style.animation = `amb-${style} ${duration}ms ${easing} both`;
-                        el.style.animationDelay = `${index * 50}ms`;
-                    });
+                    this.playPreviewElements(previewElements, style, duration, areaKey, 50);
                 });
             });
 
@@ -1111,12 +1306,45 @@ module.exports = class AmbientProfilePopouts {
 
             const card = document.createElement("div");
             card.className = "amb-style-card";
+            
+            // Get current settings to show which areas use this animation
+            const cur = this.getSettings();
+            const activeAreas = [];
+            for (const [areaKey, areaCfg] of Object.entries(cur.anim)) {
+                if (areaCfg.style === style && areaCfg.enabled && (!LAYOUT_ANIM_AREAS.has(areaKey) || cur.layoutAnimationsEnabled)) {
+                    activeAreas.push(areaKey);
+                }
+            }
+            
+            const areaLabels = {
+                messages: "Mesaj",
+                channelSwitch: "Kanal",
+                serverSwitch: "Sunucu",
+                sidebar: "Sidebar",
+                memberSidebar: "Member",
+                modals: "Modal",
+                emojiPicker: "Emoji",
+                toasts: "Toast",
+                contextMenu: "Menü"
+            };
+            Object.assign(areaLabels, {
+                channelList: "Kanal",
+                memberList: "Uye",
+                searchResults: "Arama",
+                userProfile: "Profil",
+                statusBar: "Panel"
+            });
+
+            const activeBadges = activeAreas.length > 0 ? 
+                `<div class="amb-active-badges">${activeAreas.map(area => `<span class="amb-badge">${areaLabels[area] || area}</span>`).join('')}</div>` : '';
+            
             card.innerHTML = `
                 <div class="amb-style-preview">
                     ${this.getPreviewContent(targetGridId)}
                 </div>
                 <div class="amb-style-name">${label}</div>
                 <div class="amb-style-desc">${animDescriptions[style] || ""}</div>
+                ${activeBadges}
                 <div class="amb-style-actions">
                     <button class="amb-style-btn preview-btn" title="Önizle">▶️</button>
                 </div>
@@ -1126,81 +1354,12 @@ module.exports = class AmbientProfilePopouts {
             const previewBtn = card.querySelector('.preview-btn');
 
             const triggerCardPreview = () => {
-                previewItems.forEach(item => { item.style.animation = "none"; });
-                if (previewItems.length > 0) void previewItems[0].offsetWidth;
-
-                if (style === "none") {
-                    previewItems.forEach(item => { item.style.opacity = "0"; });
-                    return;
-                }
-                const easingMap = {
-                    "spring": "cubic-bezier(.34,1.56,.64,1)",
-                    "bounce": "cubic-bezier(.68,-0.55,.265,1.55)",
-                    "elastic": "cubic-bezier(.68,-0.6,.32,1.6)",
-                    "jelly": "cubic-bezier(.68,-0.55,.265,1.55)",
-                    "pop": "cubic-bezier(.68,-0.55,.265,1.55)",
-                    "shake": "cubic-bezier(.36,.07,.19,.97)",
-                    "fade": "cubic-bezier(.4,0,.2,1)",
-                    "slide-up": "cubic-bezier(.25,1,.5,1)",
-                    "slide-down": "cubic-bezier(.25,1,.5,1)",
-                    "slide-left": "cubic-bezier(.25,1,.5,1)",
-                    "slide-right": "cubic-bezier(.25,1,.5,1)",
-                    "scale": "cubic-bezier(.34,1.56,.64,1)",
-                    "blur": "cubic-bezier(.4,0,.2,1)",
-                    "flip": "cubic-bezier(.68,-0.55,.265,1.55)",
-                    "rotate": "cubic-bezier(.68,-0.55,.265,1.55)",
-                    "pulse": "cubic-bezier(.4,0,.6,1)",
-                    "zoom-in": "cubic-bezier(.34,1.56,.64,1)",
-                    "zoom-out": "cubic-bezier(.34,1.56,.64,1)",
-                    "slide-fade": "cubic-bezier(.25,1,.5,1)",
-                    "typewriter": "steps(40, end)",
-                    "glitch": "cubic-bezier(.25,1,.5,1)",
-                    "morph": "cubic-bezier(.34,1.56,.64,1)",
-                    "wave": "cubic-bezier(.25,1,.5,1)",
-                    "reveal": "cubic-bezier(.25,1,.5,1)",
-                    "stagger": "cubic-bezier(.25,1,.5,1)",
-                    "swing": "cubic-bezier(.25,1,.5,1)",
-                    "ripple": "cubic-bezier(.25,1,.5,1)"
-                };
-                const easing = easingMap[style] || "cubic-bezier(.22,.68,0,1.2)";
-                const durationMap = {
-                    "spring": 800,
-                    "bounce": 900,
-                    "elastic": 1000,
-                    "jelly": 850,
-                    "pop": 700,
-                    "shake": 600,
-                    "fade": 500,
-                    "slide-up": 600,
-                    "slide-down": 600,
-                    "slide-left": 600,
-                    "slide-right": 600,
-                    "scale": 700,
-                    "blur": 500,
-                    "flip": 800,
-                    "rotate": 900,
-                    "pulse": 800,
-                    "zoom-in": 600,
-                    "zoom-out": 600,
-                    "slide-fade": 700,
-                    "typewriter": 800,
-                    "glitch": 400,
-                    "morph": 600,
-                    "wave": 700,
-                    "reveal": 600,
-                    "stagger": 500,
-                    "swing": 800,
-                    "ripple": 700
-                };
-                const duration = durationMap[style] || 600;
-                
-                previewItems.forEach((item, index) => {
-                    item.style.animation = `amb-${style} ${duration}ms ${easing} both`;
-                    item.style.animationDelay = `${index * 50}ms`;
-                });
+                this.playPreviewElements(previewItems, style, this.getPreviewDuration(style), "", 50);
             };
 
-            card.addEventListener('mouseenter', triggerCardPreview);
+            card.addEventListener('mouseenter', () => {
+                if (this.getSettings().quickPreview !== false) triggerCardPreview();
+            });
             previewBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 triggerCardPreview();
@@ -1217,6 +1376,29 @@ module.exports = class AmbientProfilePopouts {
 
         // Populate animation grids
         const allAnimGrid = homeSection.querySelector('#allAnimGrid');
+        const qualityPicker = homeSection.querySelector('#motionQualityPicker');
+        const syncQualityPicker = () => {
+            const current = this.getSettings().motionQuality || "balanced";
+            qualityPicker?.querySelectorAll('button[data-quality]').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.quality === current);
+            });
+        };
+        qualityPicker?.addEventListener('click', (event) => {
+            const btn = event.target.closest?.('button[data-quality]');
+            if (!btn) return;
+            const cur = this.getSettings();
+            cur.motionQuality = btn.dataset.quality;
+            if (cur.motionQuality === "performance") {
+                cur.maxAnimatedChildren = Math.min(cur.maxAnimatedChildren || 24, 12);
+            } else if (cur.motionQuality === "cinematic") {
+                cur.maxAnimatedChildren = Math.max(cur.maxAnimatedChildren || 24, 36);
+            }
+            this.saveSettings(cur);
+            this.applySettingsToCSS(cur);
+            syncQualityPicker();
+            this.toast(`Animasyon kalite modu: ${btn.textContent}`, "success");
+        });
+        syncQualityPicker();
         ANIM_STYLES.forEach(style => {
             if (style !== "none") {
                 allAnimGrid.appendChild(createAnimStyleCard(style, ANIM_STYLE_LABELS[style], 'allAnimGrid'));
@@ -1260,7 +1442,10 @@ module.exports = class AmbientProfilePopouts {
             { key: "glowOpacity", label: "Glow Yoğunluğu", desc: "Profil etrafındaki ambient ışık efektinin yoğunluğu.", min: 0, max: 1, step: 0.01 },
             { key: "sheenOpacity", label: "Parlaklık (Sheen)", desc: "Profil üzerinde kayan parlaklık efektinin yoğunluğu.", min: 0, max: 1, step: 0.01 },
             { key: "edgeAlpha", label: "Kenar Işığı", desc: "Profil kartının kenar çerçevesinin parlaklığı.", min: 0, max: 1, step: 0.01 },
+            { key: "glassSaturation", label: "Cam Renk Doygunluğu", desc: "Cam yüzeylerin arka plan rengini ne kadar canlı göstereceğini belirler.", min: 80, max: 220, step: 5 },
+            { key: "glassDarkness", label: "Cam Koyuluk Dengesi", desc: "Profil camının okunabilirlik için ne kadar karartılacağını ayarlar.", min: 0.18, max: 0.82, step: 0.01 },
             { key: "animationSpeed", label: "Glow Animasyon Hızı", desc: "Glow efektinin animasyon hızı. 1x = varsayılan hız.", min: 0.1, max: 3, step: 0.1 },
+            { key: "maxAnimatedChildren", label: "Maksimum Toplu Animasyon", desc: "Tek DOM güncellemesinde kaç öğeye kadar animasyon uygulanacağını sınırlar. Düşük değer daha akıcıdır.", min: 6, max: 60, step: 1 },
         ];
 
         const mkPremiumSlider = (label, desc, min, max, step, val, onChange) => {
@@ -1322,18 +1507,86 @@ module.exports = class AmbientProfilePopouts {
             return row;
         };
 
+        const mkAnimationModePanel = () => {
+            const row = document.createElement("div");
+            row.className = "amb-setter-row";
+            row.innerHTML = `
+                <div class="amb-setter-top">
+                    <span class="amb-setter-lbl">Basit Animasyon Modları</span>
+                </div>
+                <div class="amb-setter-desc">Kafa karışıklığı olmadan hızlı başlangıç: güvenli mod sadece mesaj, modal, menü ve küçük popout yüzeylerini oynatır. Kanal/üye/profil listeleri ayrı toggle açılmadıkça animasyon yemez.</div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:12px;">
+                    <button class="amb-modal-btn amb-modal-btn-secondary" type="button" data-mode="calm">Sakin</button>
+                    <button class="amb-modal-btn amb-modal-btn-primary" type="button" data-mode="safe">Güvenli</button>
+                    <button class="amb-modal-btn amb-modal-btn-secondary" type="button" data-mode="off">Hepsi Kapalı</button>
+                </div>
+            `;
+            row.querySelectorAll("button[data-mode]").forEach(btn => {
+                btn.addEventListener("click", () => {
+                    const cur = this.getSettings();
+                    cur.layoutAnimationsEnabled = false;
+                    for (const key of Object.keys(cur.anim)) {
+                        cur.anim[key].enabled = false;
+                        cur.anim[key].delay = 0;
+                        cur.anim[key].stagger = 0;
+                    }
+                    if (btn.dataset.mode !== "off") {
+                        const calm = btn.dataset.mode === "calm";
+                        cur.anim.messages = { style: calm ? "fade" : "slide-up", duration: calm ? 180 : 260, enabled: true, delay: 0, stagger: 0 };
+                        cur.anim.modals = { style: calm ? "scale" : "spring", duration: calm ? 190 : 320, enabled: true, delay: 0, stagger: 0 };
+                        cur.anim.contextMenu = { style: "scale", duration: calm ? 140 : 180, enabled: true, delay: 0, stagger: 0 };
+                        cur.anim.emojiPicker = { style: "scale", duration: calm ? 160 : 220, enabled: true, delay: 0, stagger: 0 };
+                        cur.anim.toasts = { style: "slide-right", duration: calm ? 200 : 280, enabled: true, delay: 0, stagger: 0 };
+                    }
+                    this.saveSettings(cur);
+                    this.applySettingsToCSS(cur);
+                    this.toast(btn.dataset.mode === "off" ? "Tüm animasyonlar kapatıldı." : `${btn.textContent} animasyon modu uygulandı.`, "success");
+                });
+            });
+            return row;
+        };
+
         settingsSection.innerHTML = `
             <h2 class="amb-section-title">Genel Ayarlar</h2>
             <p class="amb-section-desc">Animasyon paketleri, cam efektleri, glow ve diğer görsel ayarları buradan yapılandırabilirsiniz.</p>
         `;
 
         settingsSection.appendChild(mkPresetSelector());
+        settingsSection.appendChild(mkAnimationModePanel());
 
         for (const cfg of glassSliders) {
             settingsSection.appendChild(mkPremiumSlider(cfg.label, cfg.desc, cfg.min, cfg.max, cfg.step, s[cfg.key], (v) => {
                 const cur = this.getSettings(); cur[cfg.key] = v; this.saveSettings(cur); this.applySettingsToCSS(cur);
             }));
         }
+
+        const mkQualitySelector = () => {
+            const cur = this.getSettings();
+            const row = document.createElement("div"); row.className = "amb-setter-row";
+            row.innerHTML = `
+                <div class="amb-setter-top">
+                    <span class="amb-setter-lbl">Animasyon Kalite Modu</span>
+                    <span class="amb-setter-val">${cur.motionQuality || "balanced"}</span>
+                </div>
+                <div class="amb-setter-desc">Performans modu süreleri kısaltır, sinematik mod daha uzun ve gösterişli önizlemeler kullanır.</div>
+                <select class="amb-select-el" style="margin-top:12px;">
+                    <option value="performance" ${(cur.motionQuality || "balanced") === "performance" ? "selected" : ""}>Performans</option>
+                    <option value="balanced" ${(cur.motionQuality || "balanced") === "balanced" ? "selected" : ""}>Dengeli</option>
+                    <option value="cinematic" ${(cur.motionQuality || "balanced") === "cinematic" ? "selected" : ""}>Sinematik</option>
+                </select>
+            `;
+            const select = row.querySelector("select");
+            const val = row.querySelector(".amb-setter-val");
+            select.addEventListener("change", () => {
+                const next = this.getSettings();
+                next.motionQuality = select.value;
+                this.saveSettings(next);
+                this.applySettingsToCSS(next);
+                val.textContent = select.value;
+            });
+            return row;
+        };
+        settingsSection.appendChild(mkQualitySelector());
 
         // ─── Typing Ayarları Bölümü ───────────────────────────────────────────────
 
@@ -1378,6 +1631,46 @@ module.exports = class AmbientProfilePopouts {
             return row;
         };
 
+        settingsSection.appendChild(mkTypingToggle(
+            "Canlı Kart Önizlemesi",
+            "Animasyon kartlarının üzerine gelince önizlemeyi otomatik oynatır. Kapalıyken sadece oynat düğmesi çalışır.",
+            "quickPreview",
+            (state, cur) => {
+                this.saveSettings(cur);
+                this.toast(state ? "Canlı önizleme açıldı." : "Canlı önizleme kapatıldı.", "success");
+            }
+        ));
+
+        settingsSection.appendChild(mkTypingToggle(
+            "Sistem Hareket Tercihine Uyum",
+            "İşletim sisteminde hareket azaltma açıksa Discord içi animasyonları otomatik sadeleştirir.",
+            "respectReducedMotion",
+            (state, cur) => {
+                this.applySettingsToCSS(cur);
+                this.toast(state ? "Hareket tercihi dikkate alınacak." : "Hareket tercihi yok sayılacak.", "success");
+            }
+        ));
+
+        settingsSection.appendChild(mkTypingToggle(
+            "Geniş Layout Animasyonları",
+            "Kanal değişimi, profil kartları, kanal listesi, üye listesi, DM kutuları ve sidebar gibi büyük Discord parçalarını da animasyon sistemine dahil eder. Varsayılan kapalıdır.",
+            "layoutAnimationsEnabled",
+            (state, cur) => {
+                this.applySettingsToCSS(cur);
+                this.toast(state ? "Geniş layout animasyonları açıldı." : "Geniş layout animasyonları kapatıldı.", "success");
+            }
+        ));
+
+        settingsSection.appendChild(mkTypingToggle(
+            "Global Cam Yüzeyler",
+            "Menü, tooltip ve picker gibi Discord yüzeylerine cam görünümü uygular. Tema çakışması yaşarsan kapalı kalması daha iyi olur.",
+            "globalGlassSurfaces",
+            (state, cur) => {
+                this.applySettingsToCSS(cur);
+                this.toast(state ? "Global cam yüzeyler açıldı." : "Global cam yüzeyler kapatıldı.", "success");
+            }
+        ));
+
         // Toggle 1: Yazdığını başkalarından gizle (InvisibleTyping)
         const invisTypingRow = mkTypingToggle(
             "🫥 Yazdığını Gizle (Invisible Typing)",
@@ -1410,8 +1703,8 @@ module.exports = class AmbientProfilePopouts {
             this.saveSettings(JSON.parse(JSON.stringify(DEFAULT_SETTINGS)));
             this.applySettingsToCSS(this.getSettings());
             this.toast("Eklenti ayarları fabrika ayarlarına döndürüldü.", "success");
-            const parent = wrap.parentElement;
-            if (parent) { wrap.remove(); parent.appendChild(this.getSettingsPanel()); }
+            modalOverlay.remove();
+            this.getSettingsPanel();
         });
         settingsSection.appendChild(resetBtn);
 
@@ -1428,6 +1721,73 @@ module.exports = class AmbientProfilePopouts {
     // ─── Lifecycle ───────────────────────────────────────────────────────────────
 
     // ─── Invisible Typing (Yazdığını Gizle) ─────────────────────────────────────
+
+    shouldReduceMotion(settings = this.getSettings()) {
+        return settings.respectReducedMotion !== false && window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    }
+
+    getMotionEasing(style, areaKey = "") {
+        const base = {
+            spring: "cubic-bezier(.34,1.56,.64,1)",
+            bounce: "cubic-bezier(.34,1.56,.64,1)",
+            elastic: "cubic-bezier(.5,0,.1,1.35)",
+            jelly: "cubic-bezier(.34,1.56,.64,1)",
+            pop: "cubic-bezier(.34,1.56,.64,1)",
+            shake: "cubic-bezier(.36,.07,.19,.97)",
+            fade: "cubic-bezier(.4,0,.2,1)",
+            "slide-up": "cubic-bezier(.25,1,.5,1)",
+            "slide-down": "cubic-bezier(.25,1,.5,1)",
+            "slide-left": "cubic-bezier(.25,1,.5,1)",
+            "slide-right": "cubic-bezier(.25,1,.5,1)",
+            scale: "cubic-bezier(.34,1.28,.64,1)",
+            blur: "cubic-bezier(.4,0,.2,1)",
+            flip: "cubic-bezier(.34,1.28,.64,1)",
+            rotate: "cubic-bezier(.34,1.28,.64,1)",
+            pulse: "cubic-bezier(.4,0,.6,1)",
+            "zoom-in": "cubic-bezier(.34,1.28,.64,1)",
+            "zoom-out": "cubic-bezier(.34,1.28,.64,1)",
+            "slide-fade": "cubic-bezier(.25,1,.5,1)",
+            typewriter: "steps(36, end)",
+            glitch: "cubic-bezier(.25,1,.5,1)",
+            morph: "cubic-bezier(.34,1.28,.64,1)",
+            wave: "cubic-bezier(.25,1,.5,1)",
+            reveal: "cubic-bezier(.25,1,.5,1)",
+            stagger: "cubic-bezier(.25,1,.5,1)",
+            swing: "cubic-bezier(.25,1,.5,1)",
+            ripple: "cubic-bezier(.25,1,.5,1)"
+        };
+        if (areaKey === "messages" && ["spring", "bounce", "jelly", "pop", "scale", "zoom-in", "zoom-out"].includes(style)) {
+            return "cubic-bezier(.25,1,.5,1)";
+        }
+        return base[style] || "cubic-bezier(.22,.68,0,1)";
+    }
+
+    getQualityScale(settings = this.getSettings()) {
+        return settings.motionQuality === "performance" ? 0.72 : settings.motionQuality === "cinematic" ? 1.16 : 1;
+    }
+
+    getPreviewDuration(style, settings = this.getSettings()) {
+        const durationMap = {
+            spring: 760, bounce: 820, elastic: 920, jelly: 780, pop: 620, shake: 520,
+            fade: 460, "slide-up": 560, "slide-down": 560, "slide-left": 560, "slide-right": 560,
+            scale: 620, blur: 480, flip: 720, rotate: 760, pulse: 720, "zoom-in": 560,
+            "zoom-out": 560, "slide-fade": 620, typewriter: 760, glitch: 420, morph: 560,
+            wave: 640, reveal: 560, stagger: 500, swing: 720, ripple: 640
+        };
+        return Math.round((durationMap[style] || 560) * this.getQualityScale(settings));
+    }
+
+    playPreviewElements(elements, style, duration, areaKey = "", stagger = 50) {
+        const items = Array.from(elements || []);
+        items.forEach(el => { el.style.animation = "none"; el.style.opacity = "0"; });
+        if (!items.length || style === "none") return;
+        void items[0].offsetWidth;
+        const easing = this.getMotionEasing(style, areaKey);
+        items.forEach((el, index) => {
+            el.style.animation = `amb-${style} ${duration}ms ${easing} both`;
+            el.style.animationDelay = `${index * stagger}ms`;
+        });
+    }
 
     patchInvisibleTyping() {
         // Önceki patch varsa temizle
@@ -1511,6 +1871,16 @@ module.exports = class AmbientProfilePopouts {
     // ─── Animation system ────────────────────────────────────────────────────────
 
     injectAnimCSS(s) {
+        if (this.shouldReduceMotion(s)) {
+            BdApi.DOM.addStyle("AmbientAnimCSS", `
+                .ambient-anim-messages,.ambient-anim-channelSwitch,.ambient-anim-serverSwitch,.ambient-anim-sidebar,
+                .ambient-anim-memberSidebar,.ambient-anim-modals,.ambient-anim-emojiPicker,.ambient-anim-toasts,
+                .ambient-anim-contextMenu,.ambient-anim-channelList,.ambient-anim-memberList,.ambient-anim-searchResults,
+                .ambient-anim-userProfile,.ambient-anim-statusBar{animation:amb-fade 120ms ease-out both!important;}
+                @keyframes amb-fade{from{opacity:0}to{opacity:1}}
+            `);
+            return;
+        }
         const rules = [`
         @keyframes amb-fade        { from{opacity:0} to{opacity:1} }
         @keyframes amb-slide-up    { from{opacity:0;transform:translateY(24px)} to{opacity:1;transform:translateY(0)} }
@@ -1543,42 +1913,11 @@ module.exports = class AmbientProfilePopouts {
 
         for (const [areaKey, cfg] of Object.entries(s.anim)) {
             if (!cfg.enabled || cfg.style === "none") continue;
-            const easingMap = {
-                "spring": "cubic-bezier(.34,1.56,.64,1)",
-                "bounce": "cubic-bezier(.68,-0.55,.265,1.55)",
-                "elastic": "cubic-bezier(.68,-0.6,.32,1.6)",
-                "jelly": "cubic-bezier(.68,-0.55,.265,1.55)",
-                "pop": "cubic-bezier(.68,-0.55,.265,1.55)",
-                "shake": "cubic-bezier(.36,.07,.19,.97)"
-            };
-            // Messages için özel smooth easing
-            let easing = easingMap[cfg.style] || "cubic-bezier(.22,.68,0,1.2)";
-            if (areaKey === "messages") {
-                const messageEasingMap = {
-                    "spring": "cubic-bezier(.25,1,.5,1)",
-                    "bounce": "cubic-bezier(.34,1.56,.64,1)",
-                    "elastic": "cubic-bezier(.5,0,.5,1)",
-                    "jelly": "cubic-bezier(.34,1.56,.64,1)",
-                    "pop": "cubic-bezier(.34,1.56,.64,1)",
-                    "shake": "cubic-bezier(.4,0,.6,1)",
-                    "fade": "cubic-bezier(.4,0,.2,1)",
-                    "slide-up": "cubic-bezier(.25,1,.5,1)",
-                    "slide-down": "cubic-bezier(.25,1,.5,1)",
-                    "slide-left": "cubic-bezier(.25,1,.5,1)",
-                    "slide-right": "cubic-bezier(.25,1,.5,1)",
-                    "scale": "cubic-bezier(.34,1.56,.64,1)",
-                    "blur": "cubic-bezier(.4,0,.2,1)",
-                    "flip": "cubic-bezier(.34,1.56,.64,1)",
-                    "rotate": "cubic-bezier(.34,1.56,.64,1)",
-                    "pulse": "cubic-bezier(.4,0,.6,1)",
-                    "zoom-in": "cubic-bezier(.34,1.56,.64,1)",
-                    "zoom-out": "cubic-bezier(.34,1.56,.64,1)",
-                    "slide-fade": "cubic-bezier(.25,1,.5,1)"
-                };
-                easing = messageEasingMap[cfg.style] || "cubic-bezier(.25,1,.5,1)";
-            }
+            if (LAYOUT_ANIM_AREAS.has(areaKey) && !s.layoutAnimationsEnabled) continue;
+            const easing = this.getMotionEasing(cfg.style, areaKey);
+            const duration = Math.max(80, Math.round((cfg.duration || 300) * this.getQualityScale(s)));
             const delayCSS = cfg.delay > 0 ? `animation-delay:${cfg.delay}ms;` : '';
-            rules.push(`.ambient-anim-${areaKey}{animation:amb-${cfg.style} ${cfg.duration}ms ${easing} both;${delayCSS}will-change:transform,opacity,clip-path;}`);
+            rules.push(`.ambient-anim-${areaKey}{animation:amb-${cfg.style} ${duration}ms ${easing} both;${delayCSS}will-change:transform,opacity,clip-path;backface-visibility:hidden;transform-origin:center;}`);
         }
 
         BdApi.DOM.addStyle("AmbientAnimCSS", rules.join("\n"));
@@ -1586,9 +1925,12 @@ module.exports = class AmbientProfilePopouts {
 
     animateNode(node) {
         const s = this.getSettings();
+        if (node.closest?.(".amb-modal-overlay,.amb-settings-panel")) return;
+        const maxChildren = Math.max(1, Number(s.maxAnimatedChildren) || 24);
         for (const [areaKey, areaMeta] of Object.entries(ANIM_AREAS)) {
             const cfg = s.anim[areaKey];
             if (!cfg?.enabled || cfg.style === "none") continue;
+            if (LAYOUT_ANIM_AREAS.has(areaKey) && !s.layoutAnimationsEnabled) continue;
             const cls = `ambient-anim-${areaKey}`;
 
             // Tekil node kontrolü
@@ -1600,7 +1942,7 @@ module.exports = class AmbientProfilePopouts {
             const children = node.querySelectorAll?.(areaMeta.selector);
             if (children && children.length > 0) {
                 let index = 0;
-                children.forEach(el => {
+                Array.from(children).slice(0, maxChildren).forEach(el => {
                     this.applyAnim(el, areaKey, cls, cfg.stagger, index);
                     index++;
                 });
@@ -1610,10 +1952,14 @@ module.exports = class AmbientProfilePopouts {
 
     applyAnim(el, areaKey, cls, staggerMs = 0, index = 0) {
         if (el.classList.contains("amb-done")) return;
+        if (el.closest?.(".amb-modal-overlay,.amb-settings-panel")) return;
 
         el.classList.remove(cls);
-        void el.offsetWidth;
-        el.classList.add(cls);
+        requestAnimationFrame(() => {
+            if (!document.body.contains(el) || el.classList.contains("amb-done")) return;
+            void el.offsetWidth;
+            el.classList.add(cls);
+        });
 
         if (staggerMs > 0 && index > 0) {
             el.style.animationDelay = `${(parseFloat(el.style.animationDelay) || 0) + (staggerMs * index)}ms`;
@@ -1678,6 +2024,12 @@ module.exports = class AmbientProfilePopouts {
     injectCSS(s = DEFAULT_SETTINGS) {
         const bp = `${s.blurStrength}px`, ibp = `${s.innerBlur}px`;
         const sp = s.animationSpeed;
+        const panelAlpha = Math.max(0, Math.min(1, Number(s.panelAlpha) || 0));
+        const glowOpacity = Math.max(0, Math.min(1, Number(s.glowOpacity) || 0));
+        const sheenOpacity = Math.max(0, Math.min(1, Number(s.sheenOpacity) || 0));
+        const edgeAlpha = Math.max(0, Math.min(1, Number(s.edgeAlpha) || 0));
+        const glassSaturation = Math.max(80, Math.min(220, Number(s.glassSaturation) || 145));
+        const glassDarkness = Math.max(0.18, Math.min(0.82, Number(s.glassDarkness) || 0.52));
 
         // hideTypingIndicator CSS — sadece "typing" içeren class'ları hedef alır.
         // "dots", "avatar", "svg foreignObject" gibi geniş seçiciler KULLANILMAZ
@@ -1693,23 +2045,50 @@ module.exports = class AmbientProfilePopouts {
             mask[id*="typing"]{display:none!important;}
         `: "";
 
+        const globalGlassCSS = s.globalGlassSurfaces ? `
+        .ambient-glass-surface,
+        [class*="menu_"][role="menu"],
+        [class*="submenu_"][role="menu"],
+        [class*="tooltip_"],
+        [class*="picker_"][class*="popout_"],
+        [class*="autocomplete_"]{
+            background-color:rgba(18,18,24,.72)!important;
+            border:1px solid rgba(255,255,255,.08)!important;
+            box-shadow:0 18px 48px rgba(0,0,0,.42),0 0 28px rgba(114,137,218,.08)!important;
+            -webkit-backdrop-filter:blur(18px) saturate(${glassSaturation}%);
+            backdrop-filter:blur(18px) saturate(${glassSaturation}%);
+        }
+        [class*="menu_"][role="menu"] [class*="item_"]:hover,
+        [class*="submenu_"][role="menu"] [class*="item_"]:hover{background-color:rgba(114,137,218,.18)!important;}
+        ` : "";
+
         BdApi.DOM.addStyle("AmbientProfileCSS", `
             ${typingCSS}
         .ambient-profile-root{
             --ambient-base:114,137,218;--ambient-bright:153,170,255;--ambient-soft:230,235,255;
-            --ambient-panel-alpha:${s.panelAlpha};--ambient-edge-alpha:${s.edgeAlpha};
-            position:relative!important;overflow:hidden!important;isolation:isolate!important;border-radius:inherit;
-            background:linear-gradient(160deg,rgba(var(--ambient-base),.24),rgba(12,12,16,var(--ambient-panel-alpha)) 42%,rgba(0,0,0,.52)),var(--background-floating,rgba(18,18,22,.88))!important;
-            box-shadow:0 18px 46px rgba(0,0,0,.42),0 0 30px rgba(var(--ambient-base),.18)!important;
-            backdrop-filter:blur(${bp}) saturate(150%)!important;
+            --ambient-panel-alpha:${panelAlpha};--ambient-edge-alpha:${edgeAlpha};
+            position:relative!important;overflow:hidden!important;isolation:isolate!important;border-radius:inherit;background-clip:padding-box!important;
+            background-color:rgba(12,12,16,var(--ambient-panel-alpha))!important;
+            background-image:linear-gradient(160deg,rgba(var(--ambient-base),.20),rgba(12,12,16,${glassDarkness}) 44%,rgba(0,0,0,.42))!important;
+            box-shadow:0 18px 46px rgba(0,0,0,.38),0 0 24px rgba(var(--ambient-base),.14)!important;
+            -webkit-backdrop-filter:blur(${bp}) saturate(${glassSaturation}%)!important;
+            backdrop-filter:blur(${bp}) saturate(${glassSaturation}%)!important;
         }
         .ambient-profile-root>:not(.ambient-profile-container){position:relative!important;z-index:2!important;}
-        .ambient-profile-root [class*="userProfileInner_"],.ambient-profile-root [class*="profileInner_"],.ambient-profile-root [class*="overlayBackground_"]{background-color:rgba(8,8,12,.34)!important;background-image:none!important;backdrop-filter:blur(${ibp}) saturate(125%);}
-        .ambient-profile-root [class*="userProfileInner_"]::before,.ambient-profile-root [class*="profileInner_"]::before{opacity:.18!important;}
+        .ambient-profile-root > [class*="userProfileInner_"],
+        .ambient-profile-root > [class*="profileInner_"],
+        .ambient-profile-root [class*="overlayBackground_"]{
+            background-color:rgba(8,8,12,${Math.min(0.58, panelAlpha * 0.56 + 0.12)})!important;
+            background-image:linear-gradient(180deg,rgba(255,255,255,.035),rgba(0,0,0,.06))!important;
+            -webkit-backdrop-filter:blur(${ibp}) saturate(${Math.max(100, glassSaturation - 20)}%);
+            backdrop-filter:blur(${ibp}) saturate(${Math.max(100, glassSaturation - 20)}%);
+        }
+        .ambient-profile-root > [class*="userProfileInner_"]::before,
+        .ambient-profile-root > [class*="profileInner_"]::before{opacity:.12!important;}
         .ambient-profile-container{position:absolute;inset:0;border-radius:inherit;overflow:hidden;pointer-events:none;z-index:0;background:radial-gradient(circle at 18% 18%,rgba(var(--ambient-soft),.22),transparent 34%),radial-gradient(circle at 82% 12%,rgba(var(--ambient-bright),.20),transparent 32%),linear-gradient(135deg,rgba(var(--ambient-base),.16),transparent 54%);}
-        .ambient-glow-main{position:absolute;inset:-42%;background:radial-gradient(circle at 30% 35%,rgba(var(--ambient-base),.70),transparent 46%),radial-gradient(circle at 72% 70%,rgba(var(--ambient-bright),.38),transparent 42%),conic-gradient(from 120deg,rgba(var(--ambient-base),.12),rgba(var(--ambient-bright),.26),rgba(var(--ambient-soft),.10),rgba(var(--ambient-base),.12));background-size:150% 150%;filter:blur(30px) saturate(145%);opacity:${s.glowOpacity};animation:ambientGlowMove ${(18 / sp).toFixed(1)}s ease-in-out infinite alternate;}
+        .ambient-glow-main{position:absolute;inset:-42%;background:radial-gradient(circle at 30% 35%,rgba(var(--ambient-base),.70),transparent 46%),radial-gradient(circle at 72% 70%,rgba(var(--ambient-bright),.38),transparent 42%),conic-gradient(from 120deg,rgba(var(--ambient-base),.12),rgba(var(--ambient-bright),.26),rgba(var(--ambient-soft),.10),rgba(var(--ambient-base),.12));background-size:150% 150%;filter:blur(30px) saturate(145%);opacity:${glowOpacity};animation:ambientGlowMove ${(18 / sp).toFixed(1)}s ease-in-out infinite alternate;}
         .ambient-glow-pop{position:absolute;top:18%;left:50%;width:92%;height:68%;transform:translate(-50%,-50%) scale(1);background:radial-gradient(circle,rgba(var(--ambient-bright),.58),transparent 58%);opacity:.48;filter:blur(42px);animation:neonPulse ${(9 / sp).toFixed(1)}s ease-in-out infinite alternate;}
-        .ambient-glow-sheen{position:absolute;inset:-2px;background:linear-gradient(115deg,transparent 0%,rgba(255,255,255,.16) 38%,transparent 58%),linear-gradient(180deg,rgba(var(--ambient-soft),.10),transparent 42%);mix-blend-mode:screen;opacity:${s.sheenOpacity};animation:ambientSheen ${(12 / sp).toFixed(1)}s ease-in-out infinite;}
+        .ambient-glow-sheen{position:absolute;inset:-2px;background:linear-gradient(115deg,transparent 0%,rgba(255,255,255,.16) 38%,transparent 58%),linear-gradient(180deg,rgba(var(--ambient-soft),.10),transparent 42%);mix-blend-mode:screen;opacity:${sheenOpacity};animation:ambientSheen ${(12 / sp).toFixed(1)}s ease-in-out infinite;}
         .ambient-profile-root::after{content:'';position:absolute;inset:0;border-radius:inherit;padding:1px;background:linear-gradient(135deg,rgba(var(--ambient-soft),.34),rgba(var(--ambient-bright),var(--ambient-edge-alpha)) 34%,transparent 62%,rgba(var(--ambient-base),.34));background-size:200% 200%;-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;z-index:4;animation:borderRotate ${(7 / sp).toFixed(1)}s linear infinite;}
         .ambient-profile-tools{position:absolute;right:44px;top:10px;z-index:6;display:flex;align-items:center;gap:6px;padding:5px;border:1px solid rgba(var(--ambient-soft),.20);border-radius:10px;background:rgba(12,12,16,.50);box-shadow:0 10px 26px rgba(0,0,0,.30);backdrop-filter:blur(14px) saturate(145%);pointer-events:auto;}
         .ambient-profile-root[class*="userProfileModalOuter_"] .ambient-profile-tools,.ambient-profile-root[class*="profileOuter_"] .ambient-profile-tools{top:12px;right:56px;}
@@ -1726,8 +2105,7 @@ module.exports = class AmbientProfilePopouts {
         .ambient-profile-tags{position:absolute;right:44px;top:52px;z-index:5;display:flex;max-width:min(300px,calc(100% - 70px));flex-wrap:wrap;justify-content:flex-end;gap:5px;pointer-events:none;}
         .ambient-profile-note:not([hidden])~.ambient-profile-tags{display:none;}
         .ambient-profile-tag{max-width:116px;overflow:hidden;text-overflow:ellipsis;border:1px solid rgba(var(--ambient-soft),.20);border-radius:999px;padding:3px 7px;color:#fff;background:rgba(var(--ambient-base),.34);box-shadow:0 8px 18px rgba(0,0,0,.22);backdrop-filter:blur(10px);font-size:10px;font-weight:800;line-height:1;}
-        [class*="menu_"],[class*="submenu_"],[class*="tooltip_"],[class*="popout_"]:not(.ambient-profile-root):not([class*="userPopoutOuter_"]),[class*="picker_"],[class*="autocomplete_"],[class*="container_"][role="dialog"]{background-color:rgba(18,18,24,.72)!important;border:1px solid rgba(255,255,255,.08)!important;box-shadow:0 18px 48px rgba(0,0,0,.42),0 0 28px rgba(114,137,218,.08)!important;backdrop-filter:blur(18px) saturate(145%)!important;}
-        [class*="menu_"] [class*="item_"]:hover,[class*="submenu_"] [class*="item_"]:hover{background-color:rgba(114,137,218,.18)!important;}
+        ${globalGlassCSS}
         .ambient-enhanced-link{text-decoration-thickness:2px!important;text-underline-offset:2px!important;}
         .ambient-link-tools{display:inline-flex;align-items:center;gap:4px;margin-left:5px;vertical-align:baseline;white-space:nowrap;}
         .ambient-link-domain,.ambient-link-copy{display:inline-flex;align-items:center;height:18px;border:1px solid rgba(255,255,255,.10);border-radius:6px;color:var(--text-muted,#949ba4);background:rgba(255,255,255,.055);font-size:10px;font-weight:700;line-height:18px;}
@@ -1833,6 +2211,8 @@ module.exports = class AmbientProfilePopouts {
             b("ID", "Copy user ID", () => { const d = this.getProfileData(popout); d.id ? this.copyText(d.id, "User ID copied.") : this.toast("User ID not found.", "error"); }),
             b("User", "Copy username", () => { const d = this.getProfileData(popout); d.username ? this.copyText(d.username, "Username copied.") : this.toast("Username not found.", "error"); }),
             b("Link", "Copy profile link", () => { const d = this.getProfileData(popout); d.id ? this.copyText(`https://discord.com/users/${d.id}`, "Profile link copied.") : this.toast("Profile link needs a user ID.", "error"); }),
+            b("Avatar", "View avatar", () => this.openProfileImage(popout, "avatar")),
+            b("Banner", "View banner", () => this.openProfileImage(popout, "banner")),
             b("Song", "Open Spotify link", () => { const l = this.getSpotifyLink(popout); l ? window.open(l, "_blank") : this.toast("Spotify link not found.", "error"); }),
             b("Note", "Private local note", () => this.toggleNotePanel(popout)),
             b("Tag", "Private local tags", () => this.toggleNotePanel(popout))
@@ -1842,13 +2222,82 @@ module.exports = class AmbientProfilePopouts {
 
     updateProfileTools(popout) {
         const d = this.getProfileData(popout); const tools = popout.querySelector(".ambient-profile-tools"); if (!tools) return;
-        const [ci, cn, cl, sp] = tools.querySelectorAll(".ambient-profile-tool");
-        if (ci) ci.disabled = !d.id; if (cn) cn.disabled = !d.username; if (cl) cl.disabled = !d.id; if (sp) sp.disabled = !this.getSpotifyLink(popout);
+        const [ci, cn, cl, av, bn, sp] = tools.querySelectorAll(".ambient-profile-tool");
+        if (ci) ci.disabled = !d.id; if (cn) cn.disabled = !d.username; if (cl) cl.disabled = !d.id;
+        if (av) av.disabled = !this.getProfileImageUrl(popout, "avatar");
+        if (bn) bn.disabled = !this.getProfileImageUrl(popout, "banner");
+        if (sp) sp.disabled = !this.getSpotifyLink(popout);
     }
 
     createToolButton(label, title, onClick) {
         const b = document.createElement("button"); b.className = "ambient-profile-tool"; b.type = "button"; b.textContent = label; b.title = title;
         b.addEventListener("click", e => { e.preventDefault(); e.stopPropagation(); onClick(); }); return b;
+    }
+
+    openProfileImage(popout, type) {
+        const url = this.getProfileImageUrl(popout, type);
+        if (!url) {
+            this.toast(`${type === "banner" ? "Banner" : "Avatar"} not found.`, "error");
+            return;
+        }
+        window.open(url, "_blank");
+    }
+
+    getProfileImageUrl(popout, type = "avatar") {
+        const el = type === "banner" ? this.findProfileBannerElement(popout) : this.findProfileAvatarElement(popout);
+        const url = this.extractImageUrl(el);
+        return url ? this.upscaleDiscordImage(url) : "";
+    }
+
+    findProfileAvatarElement(popout) {
+        return this.findFirstMatchingElement(popout, [
+            '[class*="avatar_"] img[src]',
+            '[class*="avatarWrapper_"] img[src]',
+            '[class*="userAvatar_"] img[src]',
+            'svg foreignObject img[src]',
+            'img[class*="avatar"][src]',
+            'img[src*="/avatars/"]'
+        ]);
+    }
+
+    findProfileBannerElement(popout) {
+        return this.findFirstMatchingElement(popout, [
+            '[class*="profileBanner_"] img[src]',
+            '[class*="banner_"] img[src]',
+            '[class*="profileBanner_"][style*="url("]',
+            '[class*="banner_"][style*="url("]',
+            '[style*="/banners/"]',
+            'img[src*="/banners/"]'
+        ]);
+    }
+
+    findFirstMatchingElement(root, selectors) {
+        for (const selector of selectors) {
+            const el = root.querySelector?.(selector);
+            if (el) return el;
+        }
+        return null;
+    }
+
+    extractImageUrl(el) {
+        if (!el) return "";
+        if (el.currentSrc || el.src) return el.currentSrc || el.src;
+        const srcset = el.getAttribute?.("srcset");
+        if (srcset) return srcset.split(",").map(part => part.trim().split(/\s+/)[0]).filter(Boolean).pop() || "";
+        const style = el.getAttribute?.("style") || "";
+        const match = style.match(/url\((['"]?)(.*?)\1\)/i);
+        return match?.[2] || "";
+    }
+
+    upscaleDiscordImage(url) {
+        try {
+            const u = new URL(url, location.href);
+            if (u.hostname.includes("discordapp.") || u.hostname.includes("discordapp.net") || u.hostname.includes("discord.com")) {
+                u.searchParams.set("size", "4096");
+                return u.href;
+            }
+        } catch { }
+        return url;
     }
 
     // ─── Note panel ──────────────────────────────────────────────────────────────
