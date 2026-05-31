@@ -10,12 +10,12 @@ A customizable BetterDiscord plugin focused on immersive visuals, smooth UI anim
 2. Place the file inside your BetterDiscord plugins folder
 3. Enable the plugin from BetterDiscord settings
 
-PLEASE CONSIDER this plugin is still on process, especially the animation side is not fully completed although you can still customize or disable that
+
 ---
 ## Features
 
 ### Ambient & Visual Effects
-- Adaptive ambient glow effects for profile popouts and modals
+- Adaptive ambient glow effects for profile popouts and modals  
 - Modern glassmorphism UI with blur/backdrop filters
 - Customizable blur, transparency, sheen intensity, and edge lighting
 - Smooth visual integration with Discord's interface
@@ -28,20 +28,17 @@ PLEASE CONSIDER this plugin is still on process, especially the animation side i
   - Popouts & modals
   - Emoji picker
   - Context menus
-  - Message inputs
+  - Message inputs...
 
 ### Animation Types
 - Fade
 - Slide
 - Scale
 - Blur
-- Flip
-- Spring
+- Flip and more.
 
 ### Productivity & Utility
-- User profile notes and tag system
 - Hide typing indicators
-- Copy button for code blocks
 - Safer link checking system
 - Shift + Click message copying
 
