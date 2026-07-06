@@ -1,8 +1,8 @@
 /**
  * @name AmbientProfilePopouts
  * @author s7lace
- * @version 1.6.7
- * @description Adds adaptive ambient glow, profile tools, and per-area animation system to Discord with a premium live-preview settings dashboard. animasyon stilleri ve hızları için canlı önizleme sistemi içeren gelişmiş bir profil kartı eklentisi.
+ * @version 1.7.0
+ * @description New: Adds adaptive ambient glow, profile tools, per-area animation system, and optional platform (desktop/mobile/web) indicators to Discord with a premium live-preview settings dashboard. animasyon stilleri ve hızları için canlı önizleme sistemi içeren gelişmiş bir profil kartı eklentisi.
  * @updateUrl https://raw.githubusercontent.com/7solace/AmbientProfilePopouts/main/AmbientProfilePopouts.plugin.js
  * @downloadUrl https://raw.githubusercontent.com/7solace/AmbientProfilePopouts/main/AmbientProfilePopouts.plugin.js
  */
@@ -33,6 +33,25 @@ const SUSPICIOUS_DOMAINS = new Set([
     "bit.ly", "tinyurl.com", "t.co", "goo.gl", "is.gd",
     "cutt.ly", "rb.gy", "shorturl.at", "grabify.link", "iplogger.org", "2no.co"
 ]);
+
+// ─── Platform Indicators (APlatformIndicators entegrasyonu) ─────────────────
+// Kullanıcının o an hangi cihazdan (masaüstü/mobil/web) bağlı olduğunu Discord'un
+// kendi PresenceStore'undan (clientStatus) okuyup küçük ikonlarla gösterir.
+
+const MESSAGE_ROW_SELECTOR = '[id^="chat-messages-"] [class*="message_"]';
+
+const PLATFORM_ORDER = ["desktop", "mobile", "web"];
+
+const PLATFORM_LABELS = { desktop: "Masaüstü", mobile: "Mobil", web: "Web / Tarayıcı" };
+
+const PLATFORM_STATUS_LABELS = { online: "çevrimiçi", idle: "boşta", dnd: "rahatsız etmeyin", offline: "çevrimdışı", invisible: "görünmez" };
+
+// Basit, orijinal geometrik SVG glyph'ler (herhangi bir ikon setinden kopyalanmadı).
+const PLATFORM_ICONS = {
+    desktop: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="4" width="19" height="13" rx="1.6"></rect><rect x="8.5" y="19" width="7" height="1.6" rx="0.8"></rect></svg>',
+    mobile: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2.4"></rect></svg>',
+    web: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.2"></circle><ellipse cx="12" cy="12" rx="4.4" ry="9.2" fill="none" stroke="currentColor" stroke-width="1.4" opacity="0.6"></ellipse><rect x="2.8" y="11.2" width="18.4" height="1.5" opacity="0.6"></rect></svg>'
+};
 
 // ─── Animation definitions ───────────────────────────────────────────────────
 
@@ -95,6 +114,11 @@ const DEFAULT_SETTINGS = {
     maxAnimatedChildren: 36,
     hideTypingIndicator: false,
     invisibleTyping: false,
+    platformIndicatorsEnabled: false,
+    platformIndicatorsProfile: true,
+    platformIndicatorsMessages: true,
+    platformIndicatorsMemberList: true,
+    platformIndicatorsDmList: true,
     activePreset: "default",
     anim: {
         messages: { style: "fade", duration: 320, enabled: true, delay: 0, stagger: 0 },
@@ -1671,6 +1695,58 @@ module.exports = class AmbientProfilePopouts {
             }
         ));
 
+        // ─── Platform Göstergeleri (APlatformIndicators entegrasyonu) ────────────
+
+        settingsSection.appendChild(mkTypingToggle(
+            "🖥️ Platform Göstergeleri",
+            "Kullanıcıların o anda hangi platformdan (Masaüstü, Mobil, Web) bağlı olduğunu küçük ikonlarla gösterir. Discord'un kendi durum verisini (presence) kullanır, ek bir izin ya da bağlantı gerektirmez.",
+            "platformIndicatorsEnabled",
+            (state, cur) => {
+                this.applyPlatformIndicatorSettings(cur);
+                this.toast(state ? "Platform göstergeleri açıldı." : "Platform göstergeleri kapatıldı.", "success");
+            }
+        ));
+
+        settingsSection.appendChild(mkTypingToggle(
+            "↳ Profil Kartında Göster",
+            "Kullanıcı profil kartı / popout'unda ismin yanında platform ikonlarını gösterir.",
+            "platformIndicatorsProfile",
+            (state, cur) => {
+                this.applyPlatformIndicatorSettings(cur);
+                this.toast(state ? "Profil kartında platform ikonları açıldı." : "Profil kartında platform ikonları kapatıldı.", "success");
+            }
+        ));
+
+        settingsSection.appendChild(mkTypingToggle(
+            "↳ Mesajlarda Göster",
+            "Bir mesaj grubunun başındaki kullanıcı adının yanında platform ikonlarını gösterir.",
+            "platformIndicatorsMessages",
+            (state, cur) => {
+                this.applyPlatformIndicatorSettings(cur);
+                this.toast(state ? "Mesajlarda platform ikonları açıldı." : "Mesajlarda platform ikonları kapatıldı.", "success");
+            }
+        ));
+
+        settingsSection.appendChild(mkTypingToggle(
+            "↳ Üye Listesinde Göster",
+            "Sunucunun sağındaki üye listesindeki her kullanıcının yanında platform ikonlarını gösterir.",
+            "platformIndicatorsMemberList",
+            (state, cur) => {
+                this.applyPlatformIndicatorSettings(cur);
+                this.toast(state ? "Üye listesinde platform ikonları açıldı." : "Üye listesinde platform ikonları kapatıldı.", "success");
+            }
+        ));
+
+        settingsSection.appendChild(mkTypingToggle(
+            "↳ DM / Kanal Listesinde Göster",
+            "Özel mesaj (DM) listesindeki kullanıcıların yanında platform ikonlarını gösterir.",
+            "platformIndicatorsDmList",
+            (state, cur) => {
+                this.applyPlatformIndicatorSettings(cur);
+                this.toast(state ? "DM listesinde platform ikonları açıldı." : "DM listesinde platform ikonları kapatıldı.", "success");
+            }
+        ));
+
         // Toggle 1: Yazdığını başkalarından gizle (InvisibleTyping)
         const invisTypingRow = mkTypingToggle(
             "🫥 Yazdığını Gizle (Invisible Typing)",
@@ -1824,6 +1900,7 @@ module.exports = class AmbientProfilePopouts {
             this.patchInvisibleTyping();
             this.scanExistingProfiles();
             this.scanExistingMessageEnhancements();
+            if (s.platformIndicatorsEnabled) { this.subscribePresenceUpdates(); this.scanExistingPlatformIndicators(); }
 
             this.observer = new MutationObserver((mutations) => {
                 for (const mutation of mutations) {
@@ -1837,6 +1914,7 @@ module.exports = class AmbientProfilePopouts {
                         for (const profile of this.findProfileRoots(node)) this.addAmbientGlow(profile);
                         this.enhanceMessageNode(node);
                         this.animateNode(node);
+                        this.scanPlatformIndicators(node);
                     }
                 }
             });
@@ -1855,11 +1933,17 @@ module.exports = class AmbientProfilePopouts {
             document.removeEventListener("click", this.handleShiftClickCopy, true);
             if (this.observer) this.observer.disconnect();
             if (this.updateInterval) clearInterval(this.updateInterval);
-            document.querySelectorAll(".ambient-profile-container,.ambient-profile-tools,.ambient-profile-note,.ambient-link-tools,.ambient-code-copy,.ambient-profile-tags").forEach(el => el.remove());
+            document.querySelectorAll(".ambient-profile-container,.ambient-profile-tools,.ambient-profile-note,.ambient-link-tools,.ambient-code-copy,.ambient-profile-tags,.ambient-platform-indicators").forEach(el => el.remove());
+            this.unsubscribePresenceUpdates();
             document.querySelectorAll(".ambient-enhanced-link").forEach(el => { el.classList.remove("ambient-enhanced-link"); el.removeAttribute("data-ambient-domain"); el.removeAttribute("data-ambient-risk"); });
             document.querySelectorAll(".ambient-enhanced-code").forEach(el => el.classList.remove("ambient-enhanced-code"));
             document.querySelectorAll(".ambient-spotify-card").forEach(el => el.classList.remove("ambient-spotify-card"));
-            document.querySelectorAll(".ambient-profile-root").forEach(el => el.classList.remove("ambient-profile-root"));
+            document.querySelectorAll(".ambient-profile-root").forEach(el => {
+                el.classList.remove("ambient-profile-root");
+                // ensurePositionedRoot() ile sadece "static" durumunda eklediğimiz inline
+                // position'ı geri alıyoruz; Discord'un kendi fixed/absolute değerine ASLA dokunmadık.
+                if (el.dataset.ambientPosChecked) { delete el.dataset.ambientPosChecked; if (el.style.position === "relative") el.style.removeProperty("position"); }
+            });
             document.querySelectorAll(".amb-done").forEach(el => el.classList.remove("amb-done"));
             for (const k of Object.keys(ANIM_AREAS))
                 document.querySelectorAll(`.ambient-anim-${k}`).forEach(el => el.classList.remove(`ambient-anim-${k}`));
@@ -2067,7 +2151,16 @@ module.exports = class AmbientProfilePopouts {
         .ambient-profile-root{
             --ambient-base:114,137,218;--ambient-bright:153,170,255;--ambient-soft:230,235,255;
             --ambient-panel-alpha:${panelAlpha};--ambient-edge-alpha:${edgeAlpha};
-            position:relative!important;overflow:hidden!important;isolation:isolate!important;border-radius:inherit;background-clip:padding-box!important;
+            /* ÖNEMLİ: "position" burada KASITLI olarak set edilmiyor / !important ile ezilmiyor.
+               Bu sınıf, Discord'un floating popout'u ekranda konumlandırmak için kullandığı
+               ASIL elemana (userPopoutOuter_ vb.) uygulanıyor. Discord o elemana inline
+               "position:fixed" + hesaplanmış transform/top/left veriyor; buraya position
+               yazıp !important eklersek (önceki sürümde olduğu gibi) o inline değeri eziriz
+               ve popout yanlış yerde / normal akışta açılır. Konumlandırma gerekiyorsa
+               (örn. bazı tam ekran modal varyantlarında position:static olabiliyor)
+               bunu ensurePositionedRoot() JS tarafında, sadece gerektiğinde ve Discord'un
+               kendi değerini ASLA ezmeyecek şekilde yapıyoruz. */
+            overflow:hidden!important;isolation:isolate!important;border-radius:inherit;background-clip:padding-box!important;
             background-color:rgba(12,12,16,var(--ambient-panel-alpha))!important;
             background-image:linear-gradient(160deg,rgba(var(--ambient-base),.20),rgba(12,12,16,${glassDarkness}) 44%,rgba(0,0,0,.42))!important;
             box-shadow:0 18px 46px rgba(0,0,0,.38),0 0 24px rgba(var(--ambient-base),.14)!important;
@@ -2122,7 +2215,13 @@ module.exports = class AmbientProfilePopouts {
         .ambient-code-copy:hover{color:#fff;background:rgba(114,137,218,.24);}
         .ambient-spotify-card{position:relative!important;overflow:hidden!important;border:1px solid rgba(30,215,96,.34)!important;box-shadow:0 0 26px rgba(30,215,96,.14),inset 0 0 0 1px rgba(255,255,255,.03)!important;}
         .ambient-spotify-card::after{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(120deg,rgba(30,215,96,.10),transparent 42%);opacity:.88;}
-        ${typingCSS}
+        .ambient-platform-indicators{display:inline-flex;align-items:center;gap:4px;margin-left:5px;vertical-align:middle;user-select:none;}
+        .ambient-platform-icon{display:inline-flex;align-items:center;justify-content:center;width:13px;height:13px;flex-shrink:0;opacity:.92;}
+        .ambient-platform-icon svg{width:100%;height:100%;fill:currentColor;}
+        .ambient-platform-icon[data-status="online"]{color:#23a55a;}
+        .ambient-platform-icon[data-status="idle"]{color:#f0b232;}
+        .ambient-platform-icon[data-status="dnd"]{color:#f23f43;}
+        .ambient-platform-icon[data-status="offline"],.ambient-platform-icon[data-status="invisible"]{color:#80848e;}
         @keyframes ambientGlowMove{0%{transform:translate3d(-2%,-1%,0) rotate(0deg) scale(1);background-position:0% 50%}50%{transform:translate3d(2%,1%,0) rotate(8deg) scale(1.04);background-position:100% 50%}100%{transform:translate3d(-1%,2%,0) rotate(-6deg) scale(1.02);background-position:0% 50%}}
         @keyframes neonPulse{0%{transform:translate(-50%,-50%) scale(.94);opacity:.30}100%{transform:translate(-50%,-50%) scale(1.12);opacity:.58}}
         @keyframes ambientSheen{0%,100%{transform:translateX(-18%);opacity:.32}50%{transform:translateX(18%);opacity:.64}}
@@ -2139,16 +2238,36 @@ module.exports = class AmbientProfilePopouts {
         if (!popout) return;
         if (popout.querySelector(".ambient-profile-container")) {
             popout.classList.add("ambient-profile-root");
+            this.ensurePositionedRoot(popout);
             this.queueColorRefresh(popout); this.ensureProfileTools(popout); this.renderProfileTags(popout); this.polishSpotifyCards(popout); return;
         }
         setTimeout(() => {
             if (!document.body.contains(popout) || popout.querySelector(".ambient-profile-container")) return;
             popout.classList.add("ambient-profile-root");
+            this.ensurePositionedRoot(popout);
             const c = document.createElement("div"); c.className = "ambient-profile-container";
             for (const cls of ["ambient-glow-main", "ambient-glow-pop", "ambient-glow-sheen"]) { const d = document.createElement("div"); d.className = cls; c.appendChild(d); }
             popout.insertBefore(c, popout.firstChild);
             this.updateProfileColors(popout); this.ensureProfileTools(popout); this.renderProfileTags(popout); this.polishSpotifyCards(popout);
         }, 180);
+    }
+
+    // Discord'un popout'u konumlandırmak için kullandığı "position" değerini ASLA ezmez.
+    // Yalnızca gerçekten "static" olduğu (örn. flex ile ortalanan tam ekran profil modalı gibi
+    // floating olmayan varyantlar) durumlarda, iç glow/tools/note katmanlarının doğru
+    // konumlanabilmesi için yerel bir "relative" ekler. Floating popout (userPopoutOuter_) zaten
+    // Discord tarafından fixed/absolute + transform ile konumlandığından buraya hiç dokunulmaz —
+    // bu da eklentinin popout'u yanlış yere taşıma hatasını kalıcı olarak engeller.
+    ensurePositionedRoot(popout) {
+        if (popout.dataset.ambientPosChecked === "1") return;
+        popout.dataset.ambientPosChecked = "1";
+        try {
+            if (getComputedStyle(popout).position === "static") {
+                popout.style.position = "relative";
+            }
+        } catch (err) {
+            console.warn(`${PLUGIN_NAME}: ensurePositionedRoot kontrolü başarısız:`, err);
+        }
     }
 
     queueColorRefresh(popout) {
@@ -2325,13 +2444,21 @@ module.exports = class AmbientProfilePopouts {
 
     getProfileData(p) { return { id: this.extractUserId(p), username: this.extractUsername(p) }; }
 
-    extractUserId(popout) {
+    // Herhangi bir konteynerin içindeki avatar/banner img src, srcset, href veya
+    // inline style'lardan Discord kullanıcı ID'sini çıkarır. Profil popout'u için
+    // yazılmıştı; artık mesaj satırı, üye listesi satırı gibi herhangi bir avatar
+    // içeren elemanda da (platform göstergeleri için) aynı mantıkla kullanılıyor.
+    extractUserIdFromElement(el) {
+        if (!el) return "";
         const vals = [];
-        popout.querySelectorAll("img[src],source[srcset],a[href]").forEach(el => vals.push(el.src, el.srcset, el.href));
-        popout.querySelectorAll("[style]").forEach(el => vals.push(el.getAttribute("style")));
+        el.querySelectorAll?.("img[src],source[srcset],a[href]").forEach(node => vals.push(node.src, node.srcset, node.href));
+        el.querySelectorAll?.("[style]").forEach(node => vals.push(node.getAttribute("style")));
+        if (typeof el.getAttribute === "function") vals.push(el.getAttribute("style"));
         for (const v of vals.filter(Boolean)) { const m = String(v).match(/(?:avatars|banners)\/(\d{16,22})\//); if (m) return m[1]; }
         return "";
     }
+
+    extractUserId(popout) { return this.extractUserIdFromElement(popout); }
 
     extractUsername(popout) {
         for (const sel of ['[class*="nickname_"]', '[class*="username_"]', '[class*="userTag_"]', 'h1', '[aria-label*="profile"]']) {
@@ -2339,6 +2466,156 @@ module.exports = class AmbientProfilePopouts {
             const label = el?.getAttribute?.("aria-label")?.trim(); if (label && label.length <= 80) return label;
         }
         return "";
+    }
+
+    // ─── Platform Indicators (APlatformIndicators entegrasyonu) ─────────────────
+
+    getPresenceStore() {
+        if (this._presenceStore !== undefined) return this._presenceStore;
+        try { this._presenceStore = BdApi.Webpack.getStore("PresenceStore") || null; }
+        catch (err) { console.warn(`${PLUGIN_NAME}: PresenceStore bulunamadı:`, err); this._presenceStore = null; }
+        return this._presenceStore;
+    }
+
+    // Discord'un resmi PresenceStore.getClientStatus(userId) metodunu kullanır;
+    // örn. {desktop:"online", mobile:"idle"}. Sürüm farklarına karşı getState()
+    // üzerinden de bir yedek okuma dener; hiçbiri çalışmazsa sessizce null döner.
+    getClientStatusMap(userId) {
+        if (!userId) return null;
+        const store = this.getPresenceStore(); if (!store) return null;
+        try {
+            if (typeof store.getClientStatus === "function") {
+                const cs = store.getClientStatus(userId);
+                if (cs && typeof cs === "object" && Object.keys(cs).length) return cs;
+            }
+            if (typeof store.getState === "function") {
+                const state = store.getState();
+                const cs = state?.clientStatuses?.[userId];
+                if (cs && typeof cs === "object" && Object.keys(cs).length) return cs;
+            }
+        } catch (err) { console.warn(`${PLUGIN_NAME}: platform durumu okunamadı:`, err); }
+        return null;
+    }
+
+    buildPlatformIndicatorsHTML(clientStatusMap) {
+        const parts = [];
+        for (const platform of PLATFORM_ORDER) {
+            const status = clientStatusMap[platform];
+            if (!status || status === "offline") continue;
+            const statusLabel = PLATFORM_STATUS_LABELS[status] || status;
+            parts.push(`<span class="ambient-platform-icon" data-platform="${platform}" data-status="${status}" title="${PLATFORM_LABELS[platform]} (${statusLabel})">${PLATFORM_ICONS[platform]}</span>`);
+        }
+        return parts.join("");
+    }
+
+    // anchorEl'in hemen ardına (afterend) platform ikon rozetini ekler/günceller/kaldırır.
+    // Rozet zaten varsa (anchorEl.nextElementSibling) onu günceller; gösterilecek
+    // platform yoksa veya ayar kapalıysa rozeti tamamen kaldırır.
+    upsertPlatformBadge(anchorEl, userId) {
+        if (!anchorEl || !anchorEl.parentNode) return;
+        const s = this.getSettings();
+        const existing = anchorEl.nextElementSibling?.classList?.contains("ambient-platform-indicators") ? anchorEl.nextElementSibling : null;
+        if (!s.platformIndicatorsEnabled || !userId) { existing?.remove(); return; }
+        const cs = this.getClientStatusMap(userId);
+        const html = cs ? this.buildPlatformIndicatorsHTML(cs) : "";
+        if (!html) { existing?.remove(); return; }
+        let badge = existing;
+        if (!badge) {
+            badge = document.createElement("span");
+            badge.className = "ambient-platform-indicators";
+            badge.contentEditable = "false";
+            anchorEl.insertAdjacentElement("afterend", badge);
+        }
+        badge.dataset.ambientUid = userId;
+        if (badge.dataset.ambientHtml !== html) { badge.innerHTML = html; badge.dataset.ambientHtml = html; }
+    }
+
+    applyProfilePlatformIndicator(popout) {
+        const userId = this.extractUserIdFromElement(popout); if (!userId) return;
+        const anchor = popout.querySelector('[class*="nickname_"]') || popout.querySelector('[class*="username_"]') || popout.querySelector("h1");
+        if (anchor) this.upsertPlatformBadge(anchor, userId);
+    }
+
+    applyPlatformIndicatorsForArea(root, rowSelector, nameSelectors) {
+        try {
+            const rows = new Set();
+            if (root.matches?.(rowSelector)) rows.add(root);
+            root.querySelectorAll?.(rowSelector).forEach(r => rows.add(r));
+            for (const row of rows) {
+                const userId = this.extractUserIdFromElement(row); if (!userId) continue;
+                let anchor = null;
+                for (const sel of nameSelectors) { anchor = row.querySelector(sel); if (anchor) break; }
+                if (anchor) this.upsertPlatformBadge(anchor, userId);
+            }
+        } catch (err) { console.warn(`${PLUGIN_NAME}: platform göstergesi taraması başarısız (${rowSelector}):`, err); }
+    }
+
+    // root: yeni eklenen bir DOM node'u ya da tüm document (ilk tarama için).
+    scanPlatformIndicators(root) {
+        const s = this.getSettings();
+        if (!s.platformIndicatorsEnabled || !root) return;
+        if (s.platformIndicatorsProfile) {
+            const popouts = new Set();
+            if (root.matches?.(PROFILE_SELECTORS)) popouts.add(root);
+            root.querySelectorAll?.(PROFILE_SELECTORS).forEach(p => popouts.add(p));
+            popouts.forEach(p => this.applyProfilePlatformIndicator(p));
+        }
+        if (s.platformIndicatorsMessages) {
+            this.applyPlatformIndicatorsForArea(root, MESSAGE_ROW_SELECTOR, ['[class*="username_"]']);
+        }
+        if (s.platformIndicatorsMemberList) {
+            this.applyPlatformIndicatorsForArea(root, ANIM_AREAS.memberList.selector, ['[class*="username_"]', '[class*="nickname_"]', '[class*="name_"]']);
+        }
+        if (s.platformIndicatorsDmList) {
+            this.applyPlatformIndicatorsForArea(root, ANIM_AREAS.channelList.selector, ['[class*="name_"]', '[class*="username_"]']);
+        }
+    }
+
+    scanExistingPlatformIndicators() { this.scanPlatformIndicators(document); }
+
+    // Discord'dan bir kullanıcının durumu değiştiğinde (çevrimiçi/boşta/dnd/platform
+    // değişimi) PresenceStore bunu dispatch eder. Zaten sayfada duran rozetleri (DOM
+    // taraması yapmadan, doğrudan kayıtlı user ID'leri üzerinden) güncelliyoruz —
+    // böylece tüm sayfayı yeniden taramak zorunda kalmıyoruz.
+    refreshAttachedPlatformIndicators() {
+        if (!document.body) return;
+        document.querySelectorAll(".ambient-platform-indicators[data-ambient-uid]").forEach(badge => {
+            const uid = badge.dataset.ambientUid;
+            const anchor = badge.previousElementSibling;
+            if (!anchor || !document.body.contains(badge)) { badge.remove(); return; }
+            this.upsertPlatformBadge(anchor, uid);
+        });
+    }
+
+    subscribePresenceUpdates() {
+        if (this._presenceChangeHandler) return; // zaten abone
+        const store = this.getPresenceStore();
+        if (!store || typeof store.addChangeListener !== "function") return;
+        this._presenceChangeHandler = () => {
+            clearTimeout(this._platformRefreshTimer);
+            this._platformRefreshTimer = setTimeout(() => this.refreshAttachedPlatformIndicators(), 220);
+        };
+        store.addChangeListener(this._presenceChangeHandler);
+    }
+
+    unsubscribePresenceUpdates() {
+        const store = this.getPresenceStore();
+        if (store && this._presenceChangeHandler && typeof store.removeChangeListener === "function") {
+            store.removeChangeListener(this._presenceChangeHandler);
+        }
+        this._presenceChangeHandler = null;
+        clearTimeout(this._platformRefreshTimer);
+    }
+
+    // Ayarlar panelinden herhangi bir "platformIndicators*" toggle'ı değiştiğinde çağrılır.
+    // Basitlik ve güvenilirlik için mevcut tüm rozetleri temizleyip, açık olan
+    // alanlar için sıfırdan yeniden tarar (nadiren tetiklenen bir kullanıcı eylemi
+    // olduğundan performans kaygısı yoktur).
+    applyPlatformIndicatorSettings(s = this.getSettings()) {
+        document.querySelectorAll(".ambient-platform-indicators").forEach(el => el.remove());
+        if (!s.platformIndicatorsEnabled) { this.unsubscribePresenceUpdates(); return; }
+        this.subscribePresenceUpdates();
+        this.scanExistingPlatformIndicators();
     }
 
     getSpotifyLink(p) { return p.querySelector('a[href*="open.spotify.com"],a[href*="spotify.link"]')?.href || ""; }
