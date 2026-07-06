@@ -2,7 +2,7 @@
  * @name AmbientProfilePopouts
  * @author s7lace
  * @version 1.7.0
- * @description New: Adds adaptive ambient glow, profile tools, per-area animation system, and optional platform (desktop/mobile/web) indicators to Discord with a premium live-preview settings dashboard. animasyon stilleri ve hızları için canlı önizleme sistemi içeren gelişmiş bir profil kartı eklentisi.
+ * @description New: Added api indicators. *Adds adaptive ambient glow, profile tools, per-area animation system, and optional platform (desktop/mobile/web) indicators to Discord with a premium live-preview settings dashboard. animasyon stilleri ve hızları için canlı önizleme sistemi içeren gelişmiş bir profil kartı eklentisi.
  * @updateUrl https://raw.githubusercontent.com/7solace/AmbientProfilePopouts/main/AmbientProfilePopouts.plugin.js
  * @downloadUrl https://raw.githubusercontent.com/7solace/AmbientProfilePopouts/main/AmbientProfilePopouts.plugin.js
  */
