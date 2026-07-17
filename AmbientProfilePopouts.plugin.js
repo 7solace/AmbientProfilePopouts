@@ -1,8 +1,8 @@
 /**
  * @name AmbientProfilePopouts
  * @author s7lace
- * @version 1.7.0
- * @description New: Added api indicators. *Adds adaptive ambient glow, profile tools, per-area animation system, and optional platform (desktop/mobile/web) indicators to Discord with a premium live-preview settings dashboard. animasyon stilleri ve hızları için canlı önizleme sistemi içeren gelişmiş bir profil kartı eklentisi.
+ * @version 1.7.7
+ * @description New: Adds adaptive ambient glow, profile tools, per-area animation system, and optional platform (desktop/mobile/web) indicators to Discord with a premium live-preview settings dashboard. animasyon stilleri ve hızları için canlı önizleme sistemi içeren gelişmiş bir profil kartı eklentisi.
  * @updateUrl https://raw.githubusercontent.com/7solace/AmbientProfilePopouts/main/AmbientProfilePopouts.plugin.js
  * @downloadUrl https://raw.githubusercontent.com/7solace/AmbientProfilePopouts/main/AmbientProfilePopouts.plugin.js
  */
@@ -119,6 +119,7 @@ const DEFAULT_SETTINGS = {
     platformIndicatorsMessages: true,
     platformIndicatorsMemberList: true,
     platformIndicatorsDmList: true,
+    serverWhitelist: { enabled: false, guildIds: [] },
     activePreset: "default",
     anim: {
         messages: { style: "fade", duration: 320, enabled: true, delay: 0, stagger: 0 },
@@ -876,6 +877,7 @@ module.exports = class AmbientProfilePopouts {
             { id: "modals", label: "🪟 Modals & Popouts", icon: "window" },
             { id: "tooltips", label: "💡 Tooltips", icon: "tooltip" },
             { id: "menus", label: "📋 Menüler", icon: "menu" },
+            { id: "servers", label: "🖥️ Sunucular", icon: "servers" },
             { id: "settings", label: "⚙️ Genel Ayarlar", icon: "settings" }
         ];
 
@@ -987,6 +989,128 @@ module.exports = class AmbientProfilePopouts {
         const settingsSection = document.createElement("div");
         settingsSection.className = "amb-content-section amb-section-settings";
         mainContent.appendChild(settingsSection);
+
+        // ─── Servers Section (Sunucu Bazlı Yükleme / CPU tasarrufu) ──────────────
+        const serversSection = document.createElement("div");
+        serversSection.className = "amb-content-section amb-section-servers";
+        serversSection.innerHTML = `
+            <h2 class="amb-section-title">🖥️ Sunucu Bazlı Yükleme</h2>
+            <p class="amb-section-desc">
+                Aşağıdan işaretlediğin sunucular <b>dışındaki</b> sunucularda eklenti hiçbir işlem yapmaz
+                (animasyonlar, profil parlaması, platform göstergesi vb. tamamen devre dışı kalır) — böylece
+                takip etmediğin sunucular Discord'u kullanırken bilgisayarına ekstra yük bindirmez.
+                Özellik kapalıyken veya hiçbir sunucu işaretli değilken eklenti her zamanki gibi tüm sunucularda çalışır.
+            </p>
+            <div class="amb-setter-row">
+                <div class="amb-setter-top" style="align-items:flex-start;">
+                    <div style="flex:1;">
+                        <span class="amb-setter-lbl">Sunucu Bazlı Yüklemeyi Etkinleştir</span>
+                        <div class="amb-setter-desc" style="margin-top:6px;">Açıldığında eklenti SADECE aşağıda işaretlediğin sunucularda çalışır; DM'ler bu kısıtlamadan etkilenmez.</div>
+                    </div>
+                    <button class="amb-toggle-btn" type="button" id="ambWlToggleBtn" style="flex-shrink:0;margin-left:16px;">
+                        <span class="amb-toggle-dot" id="ambWlToggleDot"></span>
+                    </button>
+                </div>
+            </div>
+            <div class="amb-setter-row" style="margin-top:16px;">
+                <div class="amb-setter-top">
+                    <span class="amb-setter-lbl" id="ambGuildCountLbl">Sunucularım</span>
+                    <span class="amb-setter-val" id="ambGuildSelectedCount">0 seçili</span>
+                </div>
+                <input type="text" id="ambGuildSearch" placeholder="Sunucu ara..." class="amb-select-el" style="margin-top:10px;" />
+                <div style="display:flex; gap:8px; margin-top:10px;">
+                    <button type="button" class="amb-modal-btn amb-modal-btn-secondary" id="ambSelectAllGuilds" style="flex:1;">Tümünü Seç</button>
+                    <button type="button" class="amb-modal-btn amb-modal-btn-secondary" id="ambSelectNoneGuilds" style="flex:1;">Tümünü Kaldır</button>
+                </div>
+                <div id="ambGuildList" style="display:flex; flex-direction:column; gap:6px; margin-top:14px; max-height:420px; overflow-y:auto; padding-right:4px;"></div>
+            </div>
+        `;
+        mainContent.appendChild(serversSection);
+
+        // Sunucu listesi state ve olayları
+        {
+            const curWlS = this.getSettings();
+            const wl = curWlS.serverWhitelist || { enabled: false, guildIds: [] };
+            const guildList = this.getGuildList();
+
+            const wlBtn = serversSection.querySelector("#ambWlToggleBtn");
+            const wlDot = serversSection.querySelector("#ambWlToggleDot");
+            wlDot.style.transition = "left 0.2s cubic-bezier(0.4,0,0.2,1)";
+            let wlEnabled = !!wl.enabled;
+            const updateWlUI = () => {
+                wlBtn.style.background = wlEnabled
+                    ? "linear-gradient(135deg,#5865f2 0%,#4752c4 100%)"
+                    : "linear-gradient(135deg,#4e5058 0%,#3f4147 100%)";
+                wlDot.style.left = wlEnabled ? "25px" : "3px";
+            };
+            updateWlUI();
+            wlBtn.addEventListener("click", () => {
+                wlEnabled = !wlEnabled;
+                updateWlUI();
+                const next = this.getSettings();
+                next.serverWhitelist = next.serverWhitelist || { enabled: false, guildIds: [] };
+                next.serverWhitelist.enabled = wlEnabled;
+                this.saveSettings(next);
+                this.toast(wlEnabled ? "Sunucu bazlı yükleme açıldı." : "Sunucu bazlı yükleme kapatıldı.", "success");
+            });
+
+            const listEl = serversSection.querySelector("#ambGuildList");
+            const countLbl = serversSection.querySelector("#ambGuildSelectedCount");
+            const titleLbl = serversSection.querySelector("#ambGuildCountLbl");
+            titleLbl.textContent = `Sunucularım (${guildList.length})`;
+
+            const selected = new Set(Array.isArray(wl.guildIds) ? wl.guildIds : []);
+            const updateCount = () => { countLbl.textContent = `${selected.size} seçili`; };
+            updateCount();
+
+            const persistSelection = () => {
+                const next = this.getSettings();
+                next.serverWhitelist = next.serverWhitelist || { enabled: false, guildIds: [] };
+                next.serverWhitelist.guildIds = Array.from(selected);
+                this.saveSettings(next);
+                updateCount();
+            };
+
+            const renderGuildRows = (filter = "") => {
+                listEl.innerHTML = "";
+                const q = filter.trim().toLowerCase();
+                const filtered = q ? guildList.filter(g => g.name.toLowerCase().includes(q)) : guildList;
+                if (!filtered.length) {
+                    listEl.innerHTML = `<div class="amb-setter-desc" style="text-align:center;padding:20px 0;">Sunucu bulunamadı.</div>`;
+                    return;
+                }
+                for (const g of filtered) {
+                    const row = document.createElement("label");
+                    row.style.cssText = "display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;background:#232428;cursor:pointer;border:1px solid #1f2023;transition:border-color .15s ease;";
+                    row.innerHTML = `
+                        <input type="checkbox" style="width:18px;height:18px;flex-shrink:0;accent-color:#5865f2;cursor:pointer;" ${selected.has(g.id) ? "checked" : ""}/>
+                        ${g.iconURL
+                            ? `<img src="${g.iconURL}" width="28" height="28" style="border-radius:50%;flex-shrink:0;" />`
+                            : `<div style="width:28px;height:28px;border-radius:50%;background:#5865f2;color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;">${(g.name || "?").slice(0, 2).toUpperCase()}</div>`}
+                        <span style="font-size:13px;color:#dbdee1;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${g.name}</span>
+                    `;
+                    const cb = row.querySelector('input[type="checkbox"]');
+                    cb.addEventListener("change", () => {
+                        if (cb.checked) selected.add(g.id); else selected.delete(g.id);
+                        persistSelection();
+                    });
+                    listEl.appendChild(row);
+                }
+            };
+            renderGuildRows();
+
+            serversSection.querySelector("#ambGuildSearch").addEventListener("input", (e) => renderGuildRows(e.target.value));
+            serversSection.querySelector("#ambSelectAllGuilds").addEventListener("click", () => {
+                guildList.forEach(g => selected.add(g.id));
+                persistSelection();
+                renderGuildRows(serversSection.querySelector("#ambGuildSearch").value);
+            });
+            serversSection.querySelector("#ambSelectNoneGuilds").addEventListener("click", () => {
+                selected.clear();
+                persistSelection();
+                renderGuildRows(serversSection.querySelector("#ambGuildSearch").value);
+            });
+        }
 
         wrap.appendChild(mainContent);
 
@@ -1887,6 +2011,56 @@ module.exports = class AmbientProfilePopouts {
     }
 
 
+    // ─── Sunucu Bazlı Yükleme (Server Whitelist / Lazy Load) ────────────────────
+    // Ayarlar panelinde işaretlenmeyen sunucularda eklentinin ağır DOM tarama
+    // işlemlerini (animasyon, platform göstergesi, profil parlaması vb.)
+    // tamamen atlamasını sağlar; böylece takip edilmeyen sunucular ekstra yük
+    // bindirmez. Özellik kapalıyken (varsayılan) davranış hiç değişmez.
+
+    getCurrentGuildId() {
+        try {
+            if (!this._selectedGuildStore) {
+                this._selectedGuildStore = BdApi.Webpack.getStore("SelectedGuildStore") || null;
+            }
+            if (this._selectedGuildStore && typeof this._selectedGuildStore.getGuildId === "function") {
+                return this._selectedGuildStore.getGuildId() || null; // DM'lerde/arkadaşlarda null döner
+            }
+        } catch (err) { console.warn(`${PLUGIN_NAME}: aktif sunucu okunamadı:`, err); }
+        // Yedek yöntem: store bulunamazsa URL'den oku (/channels/{guildId}/{channelId})
+        const m = location.pathname.match(/^\/channels\/(@me|\d+)/);
+        if (m && m[1] !== "@me") return m[1];
+        return null;
+    }
+
+    isCurrentGuildAllowed() {
+        const s = this.getSettings();
+        const wl = s.serverWhitelist;
+        if (!wl || !wl.enabled) return true; // özellik kapalıysa her zaman çalış (eski davranış)
+        const guildId = this.getCurrentGuildId();
+        if (!guildId) return true; // DM / arkadaş listesi "sunucu" sayılmaz, her zaman aktif kalır
+        return Array.isArray(wl.guildIds) && wl.guildIds.includes(guildId);
+    }
+
+    getGuildList() {
+        try {
+            const store = BdApi.Webpack.getStore("GuildStore");
+            if (!store || typeof store.getGuilds !== "function") return [];
+            const guilds = store.getGuilds();
+            return Object.values(guilds)
+                .map(g => ({
+                    id: g.id,
+                    name: g.name || "Bilinmeyen Sunucu",
+                    iconURL: g.icon
+                        ? `https://cdn.discordapp.com/icons/${g.id}/${g.icon}.${g.icon.startsWith("a_") ? "gif" : "png"}?size=64`
+                        : null
+                }))
+                .sort((a, b) => a.name.localeCompare(b.name, "tr"));
+        } catch (err) {
+            console.warn(`${PLUGIN_NAME}: sunucu listesi okunamadı:`, err);
+            return [];
+        }
+    }
+
     start() {
         try {
             this.colorRefreshTimers = new WeakMap();
@@ -1898,11 +2072,14 @@ module.exports = class AmbientProfilePopouts {
             this.injectCSS(s);
             this.injectAnimCSS(s);
             this.patchInvisibleTyping();
-            this.scanExistingProfiles();
-            this.scanExistingMessageEnhancements();
+            if (this.isCurrentGuildAllowed()) {
+                this.scanExistingProfiles();
+                this.scanExistingMessageEnhancements();
+            }
             if (s.platformIndicatorsEnabled) { this.subscribePresenceUpdates(); this.scanExistingPlatformIndicators(); }
 
             this.observer = new MutationObserver((mutations) => {
+                if (!this.isCurrentGuildAllowed()) return; // whitelist dışı sunucuda hiçbir işlem yapma (CPU tasarrufu)
                 for (const mutation of mutations) {
                     if (mutation.type === "attributes") {
                         const profile = mutation.target.closest?.(PROFILE_SELECTORS);
@@ -2469,29 +2646,62 @@ module.exports = class AmbientProfilePopouts {
     }
 
     // ─── Platform Indicators (APlatformIndicators entegrasyonu) ─────────────────
+    // Eski sürümdeki en büyük sorun: kullanıcı ID'si SADECE özel (custom) avatar/
+    // banner CDN linkindeki sayılardan regex ile okunuyordu. Varsayılan (default)
+    // avatarı olan kullanıcılarda bu linkte ID bulunmadığından rozet hiç görünmüyordu.
+    // Bu sürüm önce Discord'un kendi React bileşen ağacından (fiber) doğrudan
+    // user/message.author ID'sini okumayı dener; bu avatar tipinden bağımsız her
+    // zaman çalışır. Sadece o da başarısız olursa eski regex yöntemine düşer.
 
     getPresenceStore() {
-        if (this._presenceStore !== undefined) return this._presenceStore;
+        // Başarısız arama ASLA kalıcı cache'lenmez: webpack modülleri Discord
+        // açılışında henüz hazır olmayabilir, bu yüzden bulunana kadar her
+        // çağrıda tekrar denenir. Bulunduktan sonra kalıcı olarak cache'lenir.
+        if (this._presenceStore) return this._presenceStore;
         try { this._presenceStore = BdApi.Webpack.getStore("PresenceStore") || null; }
-        catch (err) { console.warn(`${PLUGIN_NAME}: PresenceStore bulunamadı:`, err); this._presenceStore = null; }
+        catch (err) { console.warn(`${PLUGIN_NAME}: PresenceStore aranırken hata:`, err); this._presenceStore = null; }
         return this._presenceStore;
     }
 
-    // Discord'un resmi PresenceStore.getClientStatus(userId) metodunu kullanır;
-    // örn. {desktop:"online", mobile:"idle"}. Sürüm farklarına karşı getState()
-    // üzerinden de bir yedek okuma dener; hiçbiri çalışmazsa sessizce null döner.
+    normalizeStatusValue(v) {
+        if (!v) return null;
+        if (typeof v === "string") return v;
+        if (typeof v === "object" && typeof v.status === "string") return v.status;
+        return null;
+    }
+
+    // Discord'un çeşitli sürümlerinde clientStatus verisi farklı metot/şekillerde
+    // sunulabiliyor; hepsini sırayla dener, ilk geçerli (boş olmayan) sonucu kullanır.
     getClientStatusMap(userId) {
         if (!userId) return null;
         const store = this.getPresenceStore(); if (!store) return null;
+        const tryMap = (obj) => {
+            if (!obj || typeof obj !== "object") return null;
+            const out = {}; let found = false;
+            for (const platform of PLATFORM_ORDER) {
+                const norm = this.normalizeStatusValue(obj[platform]);
+                if (norm) { out[platform] = norm; found = true; }
+            }
+            return found ? out : null;
+        };
         try {
             if (typeof store.getClientStatus === "function") {
-                const cs = store.getClientStatus(userId);
-                if (cs && typeof cs === "object" && Object.keys(cs).length) return cs;
+                const cs = tryMap(store.getClientStatus(userId));
+                if (cs) return cs;
+            }
+            if (typeof store.getClientStatuses === "function") {
+                const all = store.getClientStatuses();
+                const cs = tryMap(all?.[userId] ?? all?.get?.(userId));
+                if (cs) return cs;
             }
             if (typeof store.getState === "function") {
-                const state = store.getState();
-                const cs = state?.clientStatuses?.[userId];
-                if (cs && typeof cs === "object" && Object.keys(cs).length) return cs;
+                const bucket = store.getState()?.clientStatuses;
+                const cs = tryMap(bucket?.[userId] ?? bucket?.get?.(userId));
+                if (cs) return cs;
+            }
+            if (store.clientStatuses) {
+                const cs = tryMap(store.clientStatuses[userId] ?? store.clientStatuses.get?.(userId));
+                if (cs) return cs;
             }
         } catch (err) { console.warn(`${PLUGIN_NAME}: platform durumu okunamadı:`, err); }
         return null;
@@ -2508,30 +2718,70 @@ module.exports = class AmbientProfilePopouts {
         return parts.join("");
     }
 
+    // Discord'un React bileşen ağacından (fiber) doğrudan user/author ID'si okur.
+    // BdApi.ReactUtils bulunamazsa (çok eski BD sürümleri) manuel fiber anahtarı
+    // taraması yapılır.
+    getFiberForElement(el) {
+        if (!el) return null;
+        try {
+            if (BdApi?.ReactUtils?.getInternalInstance) {
+                const fiber = BdApi.ReactUtils.getInternalInstance(el);
+                if (fiber) return fiber;
+            }
+        } catch (err) { /* sessizce yedek yönteme geç */ }
+        try {
+            const key = Object.keys(el).find(k => k.startsWith("__reactFiber$") || k.startsWith("__reactInternalInstance$"));
+            if (key) return el[key];
+        } catch (err) { /* yok say */ }
+        return null;
+    }
+
+    // Avatar tipinden (özel/varsayılan) tamamen bağımsız çalışan, önceliği fiber
+    // taraması olan kullanıcı ID çözümleyici. Eski regex yöntemi sadece yedek.
+    getPlatformUserId(el) {
+        if (!el) return "";
+        const startPoints = [el, el.parentElement, el.parentElement?.parentElement].filter(Boolean);
+        for (const start of startPoints) {
+            let fiber = this.getFiberForElement(start);
+            let hops = 0;
+            while (fiber && hops < 20) {
+                const props = fiber.memoizedProps || fiber.pendingProps;
+                const candidate = props?.user?.id || props?.author?.id || props?.message?.author?.id
+                    || (typeof props?.userId === "string" ? props.userId : null);
+                if (candidate && /^\d{15,22}$/.test(String(candidate))) return String(candidate);
+                fiber = fiber.return;
+                hops++;
+            }
+        }
+        return this.extractUserIdFromElement(el); // yedek: CDN linki regex'i
+    }
+
     // anchorEl'in hemen ardına (afterend) platform ikon rozetini ekler/günceller/kaldırır.
     // Rozet zaten varsa (anchorEl.nextElementSibling) onu günceller; gösterilecek
     // platform yoksa veya ayar kapalıysa rozeti tamamen kaldırır.
     upsertPlatformBadge(anchorEl, userId) {
-        if (!anchorEl || !anchorEl.parentNode) return;
-        const s = this.getSettings();
-        const existing = anchorEl.nextElementSibling?.classList?.contains("ambient-platform-indicators") ? anchorEl.nextElementSibling : null;
-        if (!s.platformIndicatorsEnabled || !userId) { existing?.remove(); return; }
-        const cs = this.getClientStatusMap(userId);
-        const html = cs ? this.buildPlatformIndicatorsHTML(cs) : "";
-        if (!html) { existing?.remove(); return; }
-        let badge = existing;
-        if (!badge) {
-            badge = document.createElement("span");
-            badge.className = "ambient-platform-indicators";
-            badge.contentEditable = "false";
-            anchorEl.insertAdjacentElement("afterend", badge);
-        }
-        badge.dataset.ambientUid = userId;
-        if (badge.dataset.ambientHtml !== html) { badge.innerHTML = html; badge.dataset.ambientHtml = html; }
+        try {
+            if (!anchorEl || !anchorEl.parentNode || !document.body.contains(anchorEl)) return;
+            const s = this.getSettings();
+            const existing = anchorEl.nextElementSibling?.classList?.contains("ambient-platform-indicators") ? anchorEl.nextElementSibling : null;
+            if (!s.platformIndicatorsEnabled || !userId) { existing?.remove(); return; }
+            const cs = this.getClientStatusMap(userId);
+            const html = cs ? this.buildPlatformIndicatorsHTML(cs) : "";
+            if (!html) { existing?.remove(); return; }
+            let badge = existing;
+            if (!badge) {
+                badge = document.createElement("span");
+                badge.className = "ambient-platform-indicators";
+                badge.contentEditable = "false";
+                anchorEl.insertAdjacentElement("afterend", badge);
+            }
+            badge.dataset.ambientUid = userId;
+            if (badge.dataset.ambientHtml !== html) { badge.innerHTML = html; badge.dataset.ambientHtml = html; }
+        } catch (err) { console.warn(`${PLUGIN_NAME}: platform rozeti güncellenemedi:`, err); }
     }
 
     applyProfilePlatformIndicator(popout) {
-        const userId = this.extractUserIdFromElement(popout); if (!userId) return;
+        const userId = this.getPlatformUserId(popout); if (!userId) return;
         const anchor = popout.querySelector('[class*="nickname_"]') || popout.querySelector('[class*="username_"]') || popout.querySelector("h1");
         if (anchor) this.upsertPlatformBadge(anchor, userId);
     }
@@ -2542,33 +2792,37 @@ module.exports = class AmbientProfilePopouts {
             if (root.matches?.(rowSelector)) rows.add(root);
             root.querySelectorAll?.(rowSelector).forEach(r => rows.add(r));
             for (const row of rows) {
-                const userId = this.extractUserIdFromElement(row); if (!userId) continue;
                 let anchor = null;
                 for (const sel of nameSelectors) { anchor = row.querySelector(sel); if (anchor) break; }
-                if (anchor) this.upsertPlatformBadge(anchor, userId);
+                if (!anchor) continue;
+                const userId = this.getPlatformUserId(row) || this.getPlatformUserId(anchor);
+                if (userId) this.upsertPlatformBadge(anchor, userId);
             }
         } catch (err) { console.warn(`${PLUGIN_NAME}: platform göstergesi taraması başarısız (${rowSelector}):`, err); }
     }
 
     // root: yeni eklenen bir DOM node'u ya da tüm document (ilk tarama için).
     scanPlatformIndicators(root) {
-        const s = this.getSettings();
-        if (!s.platformIndicatorsEnabled || !root) return;
-        if (s.platformIndicatorsProfile) {
-            const popouts = new Set();
-            if (root.matches?.(PROFILE_SELECTORS)) popouts.add(root);
-            root.querySelectorAll?.(PROFILE_SELECTORS).forEach(p => popouts.add(p));
-            popouts.forEach(p => this.applyProfilePlatformIndicator(p));
-        }
-        if (s.platformIndicatorsMessages) {
-            this.applyPlatformIndicatorsForArea(root, MESSAGE_ROW_SELECTOR, ['[class*="username_"]']);
-        }
-        if (s.platformIndicatorsMemberList) {
-            this.applyPlatformIndicatorsForArea(root, ANIM_AREAS.memberList.selector, ['[class*="username_"]', '[class*="nickname_"]', '[class*="name_"]']);
-        }
-        if (s.platformIndicatorsDmList) {
-            this.applyPlatformIndicatorsForArea(root, ANIM_AREAS.channelList.selector, ['[class*="name_"]', '[class*="username_"]']);
-        }
+        try {
+            const s = this.getSettings();
+            if (!s.platformIndicatorsEnabled || !root) return;
+            if (!this.isCurrentGuildAllowed()) return; // sunucu whitelist kapsamı dışındaysa hiç tarama yapma
+            if (s.platformIndicatorsProfile) {
+                const popouts = new Set();
+                if (root.matches?.(PROFILE_SELECTORS)) popouts.add(root);
+                root.querySelectorAll?.(PROFILE_SELECTORS).forEach(p => popouts.add(p));
+                popouts.forEach(p => this.applyProfilePlatformIndicator(p));
+            }
+            if (s.platformIndicatorsMessages) {
+                this.applyPlatformIndicatorsForArea(root, MESSAGE_ROW_SELECTOR, ['[class*="username_"]']);
+            }
+            if (s.platformIndicatorsMemberList) {
+                this.applyPlatformIndicatorsForArea(root, ANIM_AREAS.memberList.selector, ['[class*="username_"]', '[class*="nickname_"]', '[class*="name_"]']);
+            }
+            if (s.platformIndicatorsDmList) {
+                this.applyPlatformIndicatorsForArea(root, ANIM_AREAS.channelList.selector, ['[class*="name_"]', '[class*="username_"]']);
+            }
+        } catch (err) { console.warn(`${PLUGIN_NAME}: scanPlatformIndicators hata:`, err); }
     }
 
     scanExistingPlatformIndicators() { this.scanPlatformIndicators(document); }
@@ -2579,6 +2833,7 @@ module.exports = class AmbientProfilePopouts {
     // böylece tüm sayfayı yeniden taramak zorunda kalmıyoruz.
     refreshAttachedPlatformIndicators() {
         if (!document.body) return;
+        if (!this.isCurrentGuildAllowed()) return;
         document.querySelectorAll(".ambient-platform-indicators[data-ambient-uid]").forEach(badge => {
             const uid = badge.dataset.ambientUid;
             const anchor = badge.previousElementSibling;
@@ -2590,7 +2845,13 @@ module.exports = class AmbientProfilePopouts {
     subscribePresenceUpdates() {
         if (this._presenceChangeHandler) return; // zaten abone
         const store = this.getPresenceStore();
-        if (!store || typeof store.addChangeListener !== "function") return;
+        if (!store || typeof store.addChangeListener !== "function") {
+            // Store henüz hazır değilse (Discord açılışında geç yüklenebilir) kısa
+            // süre sonra tekrar dener; store bulunduğu an bu döngü kendiliğinden durur.
+            clearTimeout(this._presenceSubscribeRetryTimer);
+            this._presenceSubscribeRetryTimer = setTimeout(() => this.subscribePresenceUpdates(), 1500);
+            return;
+        }
         this._presenceChangeHandler = () => {
             clearTimeout(this._platformRefreshTimer);
             this._platformRefreshTimer = setTimeout(() => this.refreshAttachedPlatformIndicators(), 220);
@@ -2599,6 +2860,7 @@ module.exports = class AmbientProfilePopouts {
     }
 
     unsubscribePresenceUpdates() {
+        clearTimeout(this._presenceSubscribeRetryTimer);
         const store = this.getPresenceStore();
         if (store && this._presenceChangeHandler && typeof store.removeChangeListener === "function") {
             store.removeChangeListener(this._presenceChangeHandler);
