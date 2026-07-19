@@ -1,7 +1,7 @@
 /**
  * @name AmbientProfilePopouts
  * @author s7lace
- * @version 1.7.7
+ * @version 2.4.0
  * @description New: Adds adaptive ambient glow, profile tools, per-area animation system, and optional platform (desktop/mobile/web) indicators to Discord with a premium live-preview settings dashboard. animasyon stilleri ve hızları için canlı önizleme sistemi içeren gelişmiş bir profil kartı eklentisi.
  * @updateUrl https://raw.githubusercontent.com/7solace/AmbientProfilePopouts/main/AmbientProfilePopouts.plugin.js
  * @downloadUrl https://raw.githubusercontent.com/7solace/AmbientProfilePopouts/main/AmbientProfilePopouts.plugin.js
@@ -121,6 +121,8 @@ const DEFAULT_SETTINGS = {
     platformIndicatorsDmList: true,
     serverWhitelist: { enabled: false, guildIds: [] },
     activePreset: "default",
+    themeCompatMode: false,
+    serverAnimProfiles: {},
     anim: {
         messages: { style: "fade", duration: 320, enabled: true, delay: 0, stagger: 0 },
         channelSwitch: { style: "fade", duration: 260, enabled: true, delay: 0, stagger: 0 },
@@ -213,10 +215,78 @@ module.exports = class AmbientProfilePopouts {
         base.anim = {};
         for (const k of Object.keys(DEFAULT_SETTINGS.anim))
             base.anim[k] = Object.assign({}, DEFAULT_SETTINGS.anim[k], saved.anim?.[k] || {});
+        // ÖNEMLİ: serverWhitelist DEFAULT_SETTINGS içinde iç içe bir obje; yukarıdaki
+        // Object.assign SIĞ (shallow) kopya olduğundan, saved.serverWhitelist henüz
+        // hiç kaydedilmemişse base.serverWhitelist DEFAULT_SETTINGS.serverWhitelist
+        // ile AYNI objeyi (referansı) gösterir. Ayarlar panelindeki kod bu objeyi
+        // doğrudan mutasyona uğrattığı için (örn. .enabled = true, .guildIds.push(...))
+        // bu satır olmadan modül seviyesindeki DEFAULT_SETTINGS kalıcı olarak
+        // bozulur — bu da "Varsayılana Sıfırla" düğmesini bile etkileyebilirdi.
+        base.serverWhitelist = Object.assign({ enabled: false, guildIds: [] }, DEFAULT_SETTINGS.serverWhitelist, saved.serverWhitelist || {});
+        base.serverWhitelist.guildIds = Array.isArray(base.serverWhitelist.guildIds) ? base.serverWhitelist.guildIds.slice() : [];
         return base;
     }
 
-    saveSettings(s) { BdApi.Data.save(PLUGIN_NAME, "settings", s); }
+    saveSettings(s) {
+        // Undo/Redo history: save snapshot before each change
+        if (!this._undoStack) this._undoStack = [];
+        if (!this._redoStack) this._redoStack = [];
+        const current = BdApi.Data.load(PLUGIN_NAME, "settings") || {};
+        this._undoStack.push(JSON.stringify(current));
+        if (this._undoStack.length > 30) this._undoStack.shift(); // max 30 steps
+        this._redoStack = []; // clear redo on new action
+        BdApi.Data.save(PLUGIN_NAME, "settings", s);
+    }
+
+    undo() {
+        if (!this._undoStack?.length) { this.toast("Geri alınacak bir değişiklik yok.", "info"); return; }
+        const current = BdApi.Data.load(PLUGIN_NAME, "settings") || {};
+        if (!this._redoStack) this._redoStack = [];
+        this._redoStack.push(JSON.stringify(current));
+        const prev = JSON.parse(this._undoStack.pop());
+        BdApi.Data.save(PLUGIN_NAME, "settings", prev);
+        this.applySettingsToCSS(this.getSettings());
+        this.toast("Değişiklik geri alındı.", "success");
+    }
+
+    redo() {
+        if (!this._redoStack?.length) { this.toast("İleri alınacak bir değişiklik yok.", "info"); return; }
+        const current = BdApi.Data.load(PLUGIN_NAME, "settings") || {};
+        this._undoStack.push(JSON.stringify(current));
+        const next = JSON.parse(this._redoStack.pop());
+        BdApi.Data.save(PLUGIN_NAME, "settings", next);
+        this.applySettingsToCSS(this.getSettings());
+        this.toast("Değişiklik ileri alındı.", "success");
+    }
+
+    // Per-server animasyon profili: mevcut sunucu için kayıtlı özel profil varsa onu döner,
+    // yoksa global ayarları döner. UI'daki tüm animasyon okumaları bunu kullanır.
+    getEffectiveAnim(s = this.getSettings()) {
+        const guildId = this.getCurrentGuildId();
+        if (guildId && s.serverAnimProfiles?.[guildId]) {
+            return s.serverAnimProfiles[guildId];
+        }
+        return s.anim;
+    }
+
+    saveServerAnimProfile(guildId, animData) {
+        const s = this.getSettings();
+        if (!s.serverAnimProfiles) s.serverAnimProfiles = {};
+        s.serverAnimProfiles[guildId] = JSON.parse(JSON.stringify(animData));
+        this.saveSettings(s);
+        this.applySettingsToCSS(s);
+        this.toast(`Sunucu animasyon profili kaydedildi.`, "success");
+    }
+
+    deleteServerAnimProfile(guildId) {
+        const s = this.getSettings();
+        if (s.serverAnimProfiles?.[guildId]) {
+            delete s.serverAnimProfiles[guildId];
+            this.saveSettings(s);
+            this.applySettingsToCSS(s);
+            this.toast(`Sunucu animasyon profili silindi (global ayarlar kullanılıyor).`, "success");
+        }
+    }
 
     getPreviewContent(type) {
         switch (type) {
@@ -882,6 +952,7 @@ module.exports = class AmbientProfilePopouts {
         ];
 
         let activeSection = "home";
+        let previousSection = 'home';
 
         sidebarItems.forEach(item => {
             const btn = document.createElement("div");
@@ -974,6 +1045,11 @@ module.exports = class AmbientProfilePopouts {
         `;
         mainContent.appendChild(menusSection);
 
+        // ESC key to close modal
+        const escHandler = (e) => { if (e.key === 'Escape') { modalOverlay.remove(); document.removeEventListener('keydown', escHandler); } };
+        document.addEventListener('keydown', escHandler);
+        modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) { modalOverlay.remove(); document.removeEventListener('keydown', escHandler); } });
+
         // Animation Detail Section (dynamic)
         const animDetailSection = document.createElement("div");
         animDetailSection.className = "amb-content-section amb-section-anim-detail";
@@ -989,6 +1065,8 @@ module.exports = class AmbientProfilePopouts {
         const settingsSection = document.createElement("div");
         settingsSection.className = "amb-content-section amb-section-settings";
         mainContent.appendChild(settingsSection);
+
+        // Servers Section
 
         // ─── Servers Section (Sunucu Bazlı Yükleme / CPU tasarrufu) ──────────────
         const serversSection = document.createElement("div");
@@ -1112,6 +1190,79 @@ module.exports = class AmbientProfilePopouts {
             });
         }
 
+        // ─── Per-Server Animasyon Profili UI ────────────────────────────────────
+        {
+            const currentGuildId = this.getCurrentGuildId();
+            const currentGuild = currentGuildId ? this.getGuildList().find(g => g.id === currentGuildId) : null;
+            const curS = this.getSettings();
+            const hasProfile = currentGuildId && curS.serverAnimProfiles?.[currentGuildId];
+
+            const profileRow = document.createElement("div");
+            profileRow.className = "amb-setter-row";
+            profileRow.style.marginTop = "16px";
+            profileRow.innerHTML = `
+                <div class="amb-setter-top">
+                    <span class="amb-setter-lbl">🎯 Mevcut Sunucu Animasyon Profili</span>
+                    <span class="amb-setter-val" style="font-size:12px;">${hasProfile ? "✅ Kayıtlı" : "—"}</span>
+                </div>
+                <div class="amb-setter-desc" style="margin-top:6px;">
+                    ${currentGuild ? `Şu an <b>${currentGuild.name}</b> sunucusundasınız. Mevcut animasyon ayarlarını bu sunucuya özel kaydedebilirsiniz. Kaydedildikten sonra bu sunucuya girdiğinizde bu profil otomatik yüklenir.` : "Şu an bir sunucuda değilsiniz (DM veya arkadaş listesi). Sunucu bazlı profil kaydetmek için bir sunucuya girin."}
+                </div>
+                ${currentGuildId ? `
+                <div style="display:flex; gap:8px; margin-top:12px;">
+                    <button class="amb-modal-btn amb-modal-btn-primary" type="button" id="ambSaveServerProfile" style="flex:1;">💾 Bu Sunucuya Kaydet</button>
+                    <button class="amb-modal-btn amb-modal-btn-secondary" type="button" id="ambDeleteServerProfile" style="flex:1;" ${!hasProfile ? 'disabled' : ''}>🗑️ Profili Sil</button>
+                </div>
+                ` : ''}
+            `;
+            serversSection.appendChild(profileRow);
+
+            if (currentGuildId) {
+                profileRow.querySelector("#ambSaveServerProfile")?.addEventListener("click", () => {
+                    const s = this.getSettings();
+                    this.saveServerAnimProfile(currentGuildId, s.anim);
+                    profileRow.querySelector('.amb-setter-val').textContent = '✅ Kaydedildi';
+                    profileRow.querySelector('#ambDeleteServerProfile').disabled = false;
+                });
+                profileRow.querySelector("#ambDeleteServerProfile")?.addEventListener("click", () => {
+                    this.deleteServerAnimProfile(currentGuildId);
+                    profileRow.querySelector('.amb-setter-val').textContent = '—';
+                    profileRow.querySelector('#ambDeleteServerProfile').disabled = true;
+                });
+            }
+
+            // Show which servers have profiles
+            const profiles = curS.serverAnimProfiles || {};
+            const profileGuildIds = Object.keys(profiles);
+            if (profileGuildIds.length > 0) {
+                const listRow = document.createElement("div");
+                listRow.className = "amb-setter-row";
+                listRow.style.marginTop = "12px";
+                const guildMap = {};
+                this.getGuildList().forEach(g => guildMap[g.id] = g.name);
+                listRow.innerHTML = `
+                    <div class="amb-setter-top">
+                        <span class="amb-setter-lbl">📋 Kayıtlı Sunucu Profilleri (${profileGuildIds.length})</span>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:4px; margin-top:8px;">
+                        ${profileGuildIds.map(id => `
+                            <div style="display:flex; align-items:center; justify-content:space-between; padding:6px 10px; background:#232428; border-radius:6px; border:1px solid #1f2023;">
+                                <span style="font-size:13px; color:#dbdee1;">${guildMap[id] || `Sunucu (${id})`}</span>
+                                <button class="amb-modal-btn amb-modal-btn-secondary" type="button" data-del-id="${id}" style="padding:4px 10px; font-size:11px;">Sil</button>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+                serversSection.appendChild(listRow);
+                listRow.querySelectorAll('[data-del-id]').forEach(btn => {
+                    btn.addEventListener("click", () => {
+                        this.deleteServerAnimProfile(btn.dataset.delId);
+                        btn.closest('div[style]').remove();
+                    });
+                });
+            }
+        }
+
         wrap.appendChild(mainContent);
 
         // Animation Detail Section functionality
@@ -1120,7 +1271,6 @@ module.exports = class AmbientProfilePopouts {
         const animDetailDesc = animDetailSection.querySelector('#animDetailDesc');
         const animDetailSettings = animDetailSection.querySelector('#animDetailSettings');
         let currentDetailStyle = null;
-        let previousSection = 'home';
 
         const showAnimDetail = (style, label) => {
             currentDetailStyle = style;
@@ -1377,7 +1527,7 @@ module.exports = class AmbientProfilePopouts {
                     e.currentTarget.textContent = 'Bu stil aktif';
                     e.currentTarget.style.background = 'linear-gradient(135deg, #3ba55c, #2d7d46)';
 
-                    const valSpan = animDetailSettings.querySelector(`#val-${areaKey}`);
+                    const valSpan = animDetailSettings.querySelector(`#dur-val-${areaKey}`);
                     if (valSpan) valSpan.textContent = `${duration}ms ✓`;
 
                     const desc = animDetailSettings.querySelector(`#desc-${areaKey}`);
@@ -1896,6 +2046,96 @@ module.exports = class AmbientProfilePopouts {
         );
         settingsSection.appendChild(hideTypingRow);
 
+        // Tema Uyumluluk Modu
+        settingsSection.appendChild(mkTypingToggle(
+            "🎨 Tema Uyumluluk Modu",
+            "Başka bir BetterDiscord teması kullanıyorsanız bu modu açın. Profil cam efekti ve glow katmanlarının z-index değerlerini düşürür, !important kurallarını azaltır ve tema çakışmalarını en aza indirir.",
+            "themeCompatMode",
+            (state, cur) => {
+                this.applySettingsToCSS(cur);
+                this.toast(state ? "Tema uyumluluk modu açıldı. Tema çakışmaları azaltıldı." : "Tema uyumluluk modu kapatıldı.", "success");
+            }
+        ));
+
+        // Undo / Redo Buttons
+        const undoRedoRow = document.createElement("div");
+        undoRedoRow.className = "amb-setter-row";
+        undoRedoRow.innerHTML = `
+            <div class="amb-setter-top">
+                <span class="amb-setter-lbl">↩️ Değişiklik Geçmişi</span>
+                <span class="amb-setter-desc" style="font-size:12px;">Son 30 ayar değişikliğini geri/ileri alabilirsiniz.</span>
+            </div>
+            <div style="display:flex; gap:8px; margin-top:10px;">
+                <button class="amb-modal-btn amb-modal-btn-secondary" type="button" id="ambUndoBtn" style="flex:1;">← Geri Al</button>
+                <button class="amb-modal-btn amb-modal-btn-secondary" type="button" id="ambRedoBtn" style="flex:1;">İleri Al →</button>
+            </div>
+        `;
+        settingsSection.appendChild(undoRedoRow);
+        undoRedoRow.querySelector("#ambUndoBtn").addEventListener("click", () => {
+            this.undo();
+            modalOverlay.remove();
+            this.getSettingsPanel();
+        });
+        undoRedoRow.querySelector("#ambRedoBtn").addEventListener("click", () => {
+            this.redo();
+            modalOverlay.remove();
+            this.getSettingsPanel();
+        });
+
+        // Export / Import Ayarlar
+        const exportImportRow = document.createElement("div");
+        exportImportRow.className = "amb-setter-row";
+        exportImportRow.innerHTML = `
+            <div class="amb-setter-top">
+                <span class="amb-setter-lbl">💾 Ayarları Yedekle / Geri Yükle</span>
+            </div>
+            <div class="amb-setter-desc">Tüm eklenti ayarlarını bir JSON dosyası olarak dışa aktar veya daha önce dışa aktarılan bir dosyadan geri yükle.</div>
+            <div style="display:flex; gap:8px; margin-top:12px;">
+                <button class="amb-modal-btn amb-modal-btn-primary" type="button" id="ambExportBtn" style="flex:1;">📤 Dışa Aktar</button>
+                <button class="amb-modal-btn amb-modal-btn-secondary" type="button" id="ambImportBtn" style="flex:1;">📥 İçe Aktar</button>
+                <input type="file" accept=".json" id="ambImportFile" style="display:none;" />
+            </div>
+        `;
+        settingsSection.appendChild(exportImportRow);
+
+        exportImportRow.querySelector("#ambExportBtn").addEventListener("click", () => {
+            const settings = this.getSettings();
+            const blob = new Blob([JSON.stringify(settings, null, 2)], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `AmbientProfilePopouts-backup-${new Date().toISOString().slice(0, 10)}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            this.toast("Ayarlar başarıyla dışa aktarıldı.", "success");
+        });
+
+        const importFile = exportImportRow.querySelector("#ambImportFile");
+        exportImportRow.querySelector("#ambImportBtn").addEventListener("click", () => importFile.click());
+        importFile.addEventListener("change", (e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                try {
+                    const imported = JSON.parse(ev.target.result);
+                    if (!imported || typeof imported !== "object" || !imported.anim) {
+                        throw new Error("Geçersiz ayar dosyası formatı.");
+                    }
+                    this.saveSettings(imported);
+                    this.applySettingsToCSS(this.getSettings());
+                    this.toast("Ayarlar başarıyla geri yüklendi!", "success");
+                    modalOverlay.remove();
+                    this.getSettingsPanel();
+                } catch (err) {
+                    this.toast("Dosya okunamadı: " + err.message, "error");
+                }
+            };
+            reader.readAsText(file);
+        });
+
         // Sıfırlama Butonu
         const resetBtn = document.createElement("button");
         resetBtn.className = "amb-btn-reset"; resetBtn.textContent = "Varsayılana Sıfırla";
@@ -2076,17 +2316,21 @@ module.exports = class AmbientProfilePopouts {
                 this.scanExistingProfiles();
                 this.scanExistingMessageEnhancements();
             }
-            if (s.platformIndicatorsEnabled) { this.subscribePresenceUpdates(); this.scanExistingPlatformIndicators(); }
+            if (s.platformIndicatorsEnabled) { this.subscribePresenceUpdates(); this.scanExistingPlatformIndicators(); this._schedulePlatformRescan(); }
 
-            this.observer = new MutationObserver((mutations) => {
-                if (!this.isCurrentGuildAllowed()) return; // whitelist dışı sunucuda hiçbir işlem yapma (CPU tasarrufu)
-                for (const mutation of mutations) {
-                    if (mutation.type === "attributes") {
-                        const profile = mutation.target.closest?.(PROFILE_SELECTORS);
-                        if (profile) { this.queueColorRefresh(profile); this.polishSpotifyCards(profile); }
-                        continue;
+            this._pendingMutations = [];
+            this._rafId = null;
+            this._processMutations = () => {
+                this._rafId = null;
+                const batch = this._pendingMutations;
+                this._pendingMutations = [];
+                if (!batch.length) return;
+                for (const { addedNodes, removedNodes } of batch) {
+                    for (const node of removedNodes) {
+                        if (node.nodeType !== Node.ELEMENT_NODE) continue;
+                        for (const profile of this.findProfileRoots(node)) this.disconnectProfileAttrObserver(profile);
                     }
-                    for (const node of mutation.addedNodes) {
+                    for (const node of addedNodes) {
                         if (node.nodeType !== Node.ELEMENT_NODE) continue;
                         for (const profile of this.findProfileRoots(node)) this.addAmbientGlow(profile);
                         this.enhanceMessageNode(node);
@@ -2094,39 +2338,41 @@ module.exports = class AmbientProfilePopouts {
                         this.scanPlatformIndicators(node);
                     }
                 }
+            };
+            this.observer = new MutationObserver((mutations) => {
+                if (!this.isCurrentGuildAllowed()) return;
+                for (const m of mutations) this._pendingMutations.push({ addedNodes: m.addedNodes, removedNodes: m.removedNodes });
+                if (!this._rafId) this._rafId = requestAnimationFrame(this._processMutations);
             });
 
             const appMount = document.getElementById("app-mount") || document.body;
-            this.observer.observe(appMount, { childList: true, subtree: true, attributes: true, attributeFilter: ["class", "src"] });
+            this.observer.observe(appMount, { childList: true, subtree: true });
         } catch (err) {
             console.error(`${PLUGIN_NAME} start failed:`, err);
         }
     }
 
     stop() {
-        allStop: {
-            BdApi.DOM.removeStyle("AmbientProfileCSS");
-            BdApi.DOM.removeStyle("AmbientAnimCSS");
-            document.removeEventListener("click", this.handleShiftClickCopy, true);
-            if (this.observer) this.observer.disconnect();
-            if (this.updateInterval) clearInterval(this.updateInterval);
-            document.querySelectorAll(".ambient-profile-container,.ambient-profile-tools,.ambient-profile-note,.ambient-link-tools,.ambient-code-copy,.ambient-profile-tags,.ambient-platform-indicators").forEach(el => el.remove());
-            this.unsubscribePresenceUpdates();
-            document.querySelectorAll(".ambient-enhanced-link").forEach(el => { el.classList.remove("ambient-enhanced-link"); el.removeAttribute("data-ambient-domain"); el.removeAttribute("data-ambient-risk"); });
-            document.querySelectorAll(".ambient-enhanced-code").forEach(el => el.classList.remove("ambient-enhanced-code"));
-            document.querySelectorAll(".ambient-spotify-card").forEach(el => el.classList.remove("ambient-spotify-card"));
-            document.querySelectorAll(".ambient-profile-root").forEach(el => {
-                el.classList.remove("ambient-profile-root");
-                // ensurePositionedRoot() ile sadece "static" durumunda eklediğimiz inline
-                // position'ı geri alıyoruz; Discord'un kendi fixed/absolute değerine ASLA dokunmadık.
-                if (el.dataset.ambientPosChecked) { delete el.dataset.ambientPosChecked; if (el.style.position === "relative") el.style.removeProperty("position"); }
-            });
-            document.querySelectorAll(".amb-done").forEach(el => el.classList.remove("amb-done"));
-            for (const k of Object.keys(ANIM_AREAS))
-                document.querySelectorAll(`.ambient-anim-${k}`).forEach(el => el.classList.remove(`ambient-anim-${k}`));
-            // Invisible typing patch'i geri al
-            if (this._typingPatch) { this._typingPatch(); this._typingPatch = null; }
-        }
+        BdApi.DOM.removeStyle("AmbientProfileCSS");
+        BdApi.DOM.removeStyle("AmbientAnimCSS");
+        document.removeEventListener("click", this.handleShiftClickCopy, true);
+        if (this.observer) this.observer.disconnect();
+        if (this._profileAttrObservers) { for (const obs of this._profileAttrObservers.values()) obs.disconnect(); this._profileAttrObservers.clear(); }
+        if (this.updateInterval) clearInterval(this.updateInterval);
+        document.querySelectorAll(".ambient-profile-container,.ambient-profile-tools,.ambient-profile-note,.ambient-link-tools,.ambient-code-copy,.ambient-profile-tags,.ambient-platform-indicators").forEach(el => el.remove());
+        this.unsubscribePresenceUpdates();
+        document.querySelectorAll(".ambient-enhanced-link").forEach(el => { el.classList.remove("ambient-enhanced-link"); el.removeAttribute("data-ambient-domain"); el.removeAttribute("data-ambient-risk"); });
+        document.querySelectorAll(".ambient-enhanced-code").forEach(el => el.classList.remove("ambient-enhanced-code"));
+        document.querySelectorAll(".ambient-spotify-card").forEach(el => el.classList.remove("ambient-spotify-card"));
+        document.querySelectorAll(".ambient-profile-root").forEach(el => {
+            el.classList.remove("ambient-profile-root");
+            if (el.dataset.ambientPosChecked) { delete el.dataset.ambientPosChecked; if (el.style.position === "relative") el.style.removeProperty("position"); }
+        });
+        document.querySelectorAll(".amb-done").forEach(el => el.classList.remove("amb-done"));
+        for (const k of Object.keys(ANIM_AREAS))
+            document.querySelectorAll(`.ambient-anim-${k}`).forEach(el => el.classList.remove(`ambient-anim-${k}`));
+        if (this._typingPatch) { this._typingPatch(); this._typingPatch = null; }
+        if (this._rafId) cancelAnimationFrame(this._rafId);
     }
 
     // ─── Animation system ────────────────────────────────────────────────────────
@@ -2172,7 +2418,8 @@ module.exports = class AmbientProfilePopouts {
         @keyframes amb-ripple      { 0%{opacity:0;transform:scale(0.8);box-shadow:0 0 0 0 rgba(var(--ambient-bright,255,255,255), 0.7)} 70%{opacity:1;transform:scale(1.05);box-shadow:0 0 0 10px rgba(var(--ambient-bright,255,255,255), 0)} 100%{transform:scale(1);box-shadow:0 0 0 0 rgba(var(--ambient-bright,255,255,255), 0)} }
         `];
 
-        for (const [areaKey, cfg] of Object.entries(s.anim)) {
+        const effectiveAnim = this.getEffectiveAnim(s);
+        for (const [areaKey, cfg] of Object.entries(effectiveAnim)) {
             if (!cfg.enabled || cfg.style === "none") continue;
             if (LAYOUT_ANIM_AREAS.has(areaKey) && !s.layoutAnimationsEnabled) continue;
             const easing = this.getMotionEasing(cfg.style, areaKey);
@@ -2188,10 +2435,28 @@ module.exports = class AmbientProfilePopouts {
         const s = this.getSettings();
         if (node.closest?.(".amb-modal-overlay,.amb-settings-panel")) return;
         const maxChildren = Math.max(1, Number(s.maxAnimatedChildren) || 24);
-        for (const [areaKey, areaMeta] of Object.entries(ANIM_AREAS)) {
+        const effectiveAnim = this.getEffectiveAnim(s);
+
+        // Cache activeAreas: invalidate only when settings actually change
+        const settingsKey = JSON.stringify(effectiveAnim) + s.layoutAnimationsEnabled + s.maxAnimatedChildren;
+        if (this._animCacheKey !== settingsKey) {
+            this._animCacheKey = settingsKey;
+            this._activeAreasCache = Object.entries(ANIM_AREAS).filter(([areaKey]) => {
+                const cfg = effectiveAnim[areaKey];
+                if (!cfg?.enabled || cfg.style === "none") return false;
+                if (LAYOUT_ANIM_AREAS.has(areaKey) && !s.layoutAnimationsEnabled) return false;
+                return true;
+            });
+            this._combinedSelectorCache = this._activeAreasCache.map(([, meta]) => meta.selector).join(",");
+        }
+        const activeAreas = this._activeAreasCache;
+        if (!activeAreas.length) return;
+        const combinedSelector = this._combinedSelectorCache;
+        const nodeMatches = node.matches?.(combinedSelector);
+        if (!nodeMatches && !node.querySelector?.(combinedSelector)) return;
+
+        for (const [areaKey, areaMeta] of activeAreas) {
             const cfg = s.anim[areaKey];
-            if (!cfg?.enabled || cfg.style === "none") continue;
-            if (LAYOUT_ANIM_AREAS.has(areaKey) && !s.layoutAnimationsEnabled) continue;
             const cls = `ambient-anim-${areaKey}`;
 
             // Tekil node kontrolü
@@ -2256,7 +2521,11 @@ module.exports = class AmbientProfilePopouts {
             const tempPath = targetPath + ".download";
             fs.writeFileSync(tempPath, remoteContent, "utf8");
             fs.renameSync(tempPath, targetPath);
-            BdApi.UI?.showToast?.(`${PLUGIN_NAME} ${remoteVersion} downloaded. Reload Discord.`, { type: "success" });
+            if (!silent) {
+                BdApi.UI?.showToast?.(`${PLUGIN_NAME} ${remoteVersion} ready! Reload Discord to apply.`, { type: "success", timeout: 8000 });
+            } else {
+                BdApi.UI?.showToast?.(`${PLUGIN_NAME} ${remoteVersion} downloaded. Reload Discord.`, { type: "success" });
+            }
         } catch (err) {
             if (!silent) console.error(`${PLUGIN_NAME} update check failed:`, err);
         } finally { this.isCheckingForUpdates = false; }
@@ -2403,6 +2672,20 @@ module.exports = class AmbientProfilePopouts {
         @keyframes neonPulse{0%{transform:translate(-50%,-50%) scale(.94);opacity:.30}100%{transform:translate(-50%,-50%) scale(1.12);opacity:.58}}
         @keyframes ambientSheen{0%,100%{transform:translateX(-18%);opacity:.32}50%{transform:translateX(18%);opacity:.64}}
         @keyframes borderRotate{0%{background-position:0% 0%}100%{background-position:200% 200%}}
+        ${s.themeCompatMode ? `
+            /* Tema Uyumluluk Modu: z-index ve specificity azaltma */
+            .ambient-profile-container{z-index:0;}
+            .ambient-glow-main{opacity:${Math.min(glowOpacity, 0.55)};}
+            .ambient-profile-tools{z-index:3;}
+            .ambient-profile-note{z-index:4;}
+            .ambient-profile-root{background-blend-mode:normal;}
+            .ambient-profile-root > [class*="userProfileInner_"],
+            .ambient-profile-root > [class*="profileInner_"],
+            .ambient-profile-root [class*="overlayBackground_"]{
+                background-color:transparent;
+                backdrop-filter:none;
+            }
+        ` : ""}
         `);
     }
 
@@ -2413,6 +2696,7 @@ module.exports = class AmbientProfilePopouts {
 
     addAmbientGlow(popout) {
         if (!popout) return;
+        this.ensureProfileAttrObserver(popout);
         if (popout.querySelector(".ambient-profile-container")) {
             popout.classList.add("ambient-profile-root");
             this.ensurePositionedRoot(popout);
@@ -2427,6 +2711,27 @@ module.exports = class AmbientProfilePopouts {
             popout.insertBefore(c, popout.firstChild);
             this.updateProfileColors(popout); this.ensureProfileTools(popout); this.renderProfileTags(popout); this.polishSpotifyCards(popout);
         }, 180);
+    }
+
+    // Eskiden tüm uygulamayı (app-mount) class/src değişikliği için izleyen tek bir
+    // MutationObserver kullanılıyordu — bu, profille hiç ilgisi olmayan binlerce
+    // olayda (yazıyor animasyonu, hover durumları, üye listesindeki durum noktaları vb.)
+    // da tetiklenip gereksiz CPU harcıyordu. Artık SADECE her açık profil popup'ının
+    // kendi içini izleyen, küçük ve popup kapanınca otomatik temizlenen ayrı bir
+    // gözlemci kullanılıyor; bu da genel akıcılığı belirgin şekilde artırır.
+    ensureProfileAttrObserver(popout) {
+        if (!this._profileAttrObservers) this._profileAttrObservers = new Map();
+        if (this._profileAttrObservers.has(popout)) return;
+        try {
+            const obs = new MutationObserver(() => { this.queueColorRefresh(popout); this.polishSpotifyCards(popout); });
+            obs.observe(popout, { subtree: true, attributes: true, attributeFilter: ["class", "src"] });
+            this._profileAttrObservers.set(popout, obs);
+        } catch (err) { console.warn(`${PLUGIN_NAME}: profil gözlemcisi oluşturulamadı:`, err); }
+    }
+
+    disconnectProfileAttrObserver(popout) {
+        const obs = this._profileAttrObservers?.get(popout);
+        if (obs) { obs.disconnect(); this._profileAttrObservers.delete(popout); }
     }
 
     // Discord'un popout'u konumlandırmak için kullandığı "position" değerini ASLA ezmez.
@@ -2510,10 +2815,26 @@ module.exports = class AmbientProfilePopouts {
             b("Avatar", "View avatar", () => this.openProfileImage(popout, "avatar")),
             b("Banner", "View banner", () => this.openProfileImage(popout, "banner")),
             b("Song", "Open Spotify link", () => { const l = this.getSpotifyLink(popout); l ? window.open(l, "_blank") : this.toast("Spotify link not found.", "error"); }),
+            b("Date", "Account creation date", () => { const d = this.getProfileData(popout); const date = this.getCreationDate(d.id); date ? this.toast(`Account created: ${date}`, "info") : this.toast("Could not determine creation date.", "error"); }),
             b("Note", "Private local note", () => this.toggleNotePanel(popout)),
             b("Tag", "Private local tags", () => this.toggleNotePanel(popout))
         );
         popout.appendChild(tools); this.updateProfileTools(popout);
+    }
+
+    getCreationDate(userId) {
+        if (!userId || !/^\d{15,22}$/.test(userId)) return null;
+        try {
+            const timestamp = Number((BigInt(userId) >> 22n) + 1420070400000n);
+            const date = new Date(timestamp);
+            const now = new Date();
+            const diffMs = now - date;
+            const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+            const years = Math.floor(diffDays / 365);
+            const months = Math.floor((diffDays % 365) / 30);
+            const ageStr = years > 0 ? `${years}y ${months}m ago` : `${diffDays} days ago`;
+            return `${date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })} (${ageStr})`;
+        } catch { return null; }
     }
 
     updateProfileTools(popout) {
@@ -2719,8 +3040,8 @@ module.exports = class AmbientProfilePopouts {
     }
 
     // Discord'un React bileşen ağacından (fiber) doğrudan user/author ID'si okur.
-    // BdApi.ReactUtils bulunamazsa (çok eski BD sürümleri) manuel fiber anahtarı
-    // taraması yapılır.
+    // Discord güncellemeleri fiber yapısını sık değiştirdiğinden, geniş prop taraması
+    // ve daha fazla hop ile çalışır. Tüm yollar başarısız olursa CDN regex yedeğine düşer.
     getFiberForElement(el) {
         if (!el) return null;
         try {
@@ -2730,8 +3051,14 @@ module.exports = class AmbientProfilePopouts {
             }
         } catch (err) { /* sessizce yedek yönteme geç */ }
         try {
-            const key = Object.keys(el).find(k => k.startsWith("__reactFiber$") || k.startsWith("__reactInternalInstance$"));
-            if (key) return el[key];
+            const key = Object.keys(el).find(k => k.startsWith("__reactFiber$") || k.startsWith("__reactInternalInstance$") || k.startsWith("__reactProps$"));
+            if (key && key.startsWith("__reactProps$")) {
+                // __reactProps$ doğrudan props objesidir, fiber değil; fiber anahtarını da ara
+                const fiberKey = Object.keys(el).find(k => k.startsWith("__reactFiber$") || k.startsWith("__reactInternalInstance$"));
+                if (fiberKey) return el[fiberKey];
+            } else if (key) {
+                return el[key];
+            }
         } catch (err) { /* yok say */ }
         return null;
     }
@@ -2740,15 +3067,31 @@ module.exports = class AmbientProfilePopouts {
     // taraması olan kullanıcı ID çözümleyici. Eski regex yöntemi sadece yedek.
     getPlatformUserId(el) {
         if (!el) return "";
-        const startPoints = [el, el.parentElement, el.parentElement?.parentElement].filter(Boolean);
+        const startPoints = [el, el.parentElement, el.parentElement?.parentElement, el.parentElement?.parentElement?.parentElement].filter(Boolean);
         for (const start of startPoints) {
             let fiber = this.getFiberForElement(start);
             let hops = 0;
-            while (fiber && hops < 20) {
+            while (fiber && hops < 30) {
                 const props = fiber.memoizedProps || fiber.pendingProps;
-                const candidate = props?.user?.id || props?.author?.id || props?.message?.author?.id
-                    || (typeof props?.userId === "string" ? props.userId : null);
-                if (candidate && /^\d{15,22}$/.test(String(candidate))) return String(candidate);
+                if (props) {
+                    // Geniş prop taraması — Discord'un farklı sürümlerindeki tüm olası yollar
+                    const candidate = props.user?.id
+                        || props.author?.id
+                        || props.message?.author?.id
+                        || props.member?.user?.id
+                        || props.user?.userId
+                        || props.recipient?.id
+                        || props.channel?.recipients?.[0]
+                        || (typeof props.userId === "string" ? props.userId : null)
+                        || (typeof props.authorId === "string" ? props.authorId : null);
+                    if (candidate && /^\d{15,22}$/.test(String(candidate))) return String(candidate);
+                }
+                // stateNode'da da props olabilir (class components)
+                const stateProps = fiber.stateNode?.props || fiber.stateNode?.memoizedProps;
+                if (stateProps) {
+                    const c2 = stateProps.user?.id || stateProps.author?.id || stateProps.message?.author?.id;
+                    if (c2 && /^\d{15,22}$/.test(String(c2))) return String(c2);
+                }
                 fiber = fiber.return;
                 hops++;
             }
@@ -2795,7 +3138,7 @@ module.exports = class AmbientProfilePopouts {
                 let anchor = null;
                 for (const sel of nameSelectors) { anchor = row.querySelector(sel); if (anchor) break; }
                 if (!anchor) continue;
-                const userId = this.getPlatformUserId(row) || this.getPlatformUserId(anchor);
+                const userId = this.getPlatformUserId(row) || this.getPlatformUserId(anchor) || this.getPlatformUserId(anchor.parentElement);
                 if (userId) this.upsertPlatformBadge(anchor, userId);
             }
         } catch (err) { console.warn(`${PLUGIN_NAME}: platform göstergesi taraması başarısız (${rowSelector}):`, err); }
@@ -2806,7 +3149,7 @@ module.exports = class AmbientProfilePopouts {
         try {
             const s = this.getSettings();
             if (!s.platformIndicatorsEnabled || !root) return;
-            if (!this.isCurrentGuildAllowed()) return; // sunucu whitelist kapsamı dışındaysa hiç tarama yapma
+            if (!this.isCurrentGuildAllowed()) return;
             if (s.platformIndicatorsProfile) {
                 const popouts = new Set();
                 if (root.matches?.(PROFILE_SELECTORS)) popouts.add(root);
@@ -2814,18 +3157,30 @@ module.exports = class AmbientProfilePopouts {
                 popouts.forEach(p => this.applyProfilePlatformIndicator(p));
             }
             if (s.platformIndicatorsMessages) {
-                this.applyPlatformIndicatorsForArea(root, MESSAGE_ROW_SELECTOR, ['[class*="username_"]']);
+                this.applyPlatformIndicatorsForArea(root, MESSAGE_ROW_SELECTOR, ['[class*="username_"]', '[class*="nickname_"]', 'span[class*="name_"]']);
             }
             if (s.platformIndicatorsMemberList) {
-                this.applyPlatformIndicatorsForArea(root, ANIM_AREAS.memberList.selector, ['[class*="username_"]', '[class*="nickname_"]', '[class*="name_"]']);
+                this.applyPlatformIndicatorsForArea(root, ANIM_AREAS.memberList.selector, ['[class*="username_"]', '[class*="nickname_"]', '[class*="name_"]', '[class*="roleColor_"]', 'span[class*="nameTag_"]']);
             }
             if (s.platformIndicatorsDmList) {
-                this.applyPlatformIndicatorsForArea(root, ANIM_AREAS.channelList.selector, ['[class*="name_"]', '[class*="username_"]']);
+                this.applyPlatformIndicatorsForArea(root, ANIM_AREAS.channelList.selector, ['[class*="name_"]', '[class*="username_"]', '[class*="channelName_"]']);
             }
         } catch (err) { console.warn(`${PLUGIN_NAME}: scanPlatformIndicators hata:`, err); }
     }
 
     scanExistingPlatformIndicators() { this.scanPlatformIndicators(document); }
+
+    // Discord açılışında React henüz tüm bileşenleri render etmemiş olabilir.
+    // İlk taramada bulunamayan rozetleri yakalamak için kademeli yeniden tarama.
+    _schedulePlatformRescan() {
+        const delays = [1500, 4000, 8000];
+        for (const ms of delays) {
+            setTimeout(() => {
+                if (!this.getSettings().platformIndicatorsEnabled || !this.isCurrentGuildAllowed()) return;
+                this.scanExistingPlatformIndicators();
+            }, ms);
+        }
+    }
 
     // Discord'dan bir kullanıcının durumu değiştiğinde (çevrimiçi/boşta/dnd/platform
     // değişimi) PresenceStore bunu dispatch eder. Zaten sayfada duran rozetleri (DOM
@@ -2855,6 +3210,18 @@ module.exports = class AmbientProfilePopouts {
         this._presenceChangeHandler = () => {
             clearTimeout(this._platformRefreshTimer);
             this._platformRefreshTimer = setTimeout(() => this.refreshAttachedPlatformIndicators(), 220);
+            // Discord bir kullanıcının durumunu ancak "abone" olduğu an client'a gönderir
+            // (arkadaşların, DM'lerin veya üye listesinde görünen kişilerin durumu anında
+            // bilinir; kalabalık bir sunucuda hiç görmediğin biri için bu veri baştan yoktur
+            // — native Discord'un kendi üye listesi de aynı kişiyi görene kadar gri gösterir).
+            // Yeni gelen her durum verisiyle, daha önce rozet takılamamış mesaj yazarlarına
+            // da (sadece görünür sohbet alanlarında, maliyeti sınırlı tutmak için) rozet
+            // takılabiliyor mu diye ayrıca ve daha seyrek bir aralıkla bakıyoruz.
+            clearTimeout(this._platformRescanTimer);
+            this._platformRescanTimer = setTimeout(() => {
+                if (!this.getSettings().platformIndicatorsEnabled || !this.isCurrentGuildAllowed()) return;
+                document.querySelectorAll('[id^="chat-messages-"]').forEach(root => this.scanPlatformIndicators(root));
+            }, 900);
         };
         store.addChangeListener(this._presenceChangeHandler);
     }
@@ -2867,6 +3234,7 @@ module.exports = class AmbientProfilePopouts {
         }
         this._presenceChangeHandler = null;
         clearTimeout(this._platformRefreshTimer);
+        clearTimeout(this._platformRescanTimer);
     }
 
     // Ayarlar panelinden herhangi bir "platformIndicators*" toggle'ı değiştiğinde çağrılır.
