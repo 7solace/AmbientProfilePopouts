@@ -182,36 +182,6 @@ const EXIT_DIR_MAP = { vertical: "slide-down", horizontal: "slide-left" };
 // 1 frame gecikmeli başlatılır ve o sırada element opacity:0 ile gizlenir.
 const POSITION_SENSITIVE_AREAS = new Set(["contextMenu", "emojiPicker", "modals", "userProfile"]);
 
-const ANIM_DESCRIPTIONS = {
-    "fade": "Yavaşça görünür",
-    "slide-up": "Aşağıdan yukarı kayarak gelir",
-    "slide-down": "Yukarıdan aşağı kayarak gelir",
-    "slide-left": "Sağdan sola kayarak gelir",
-    "slide-right": "Soldan sağa kayarak gelir",
-    "scale": "Küçükten büyüyerek görünür",
-    "blur": "Bulanıklaşarak netleşir",
-    "flip": "Dönerek görünür",
-    "spring": "Yaylanarak görünür",
-    "bounce": "Zıplayarak görünür",
-    "elastic": "Elastik şekilde görünür",
-    "rotate": "Dönerek görünür",
-    "pulse": "Nabız gibi atar",
-    "shake": "Sallanarak görünür",
-    "jelly": "Jeli gibi sallanır",
-    "zoom-in": "Uzaklaşarak görünür",
-    "zoom-out": "Yakınlaşarak görünür",
-    "slide-fade": "Kayarak ve soluklaşarak görünür",
-    "pop": "Patlayarak görünür",
-    "typewriter": "Yazı yazıyormuş gibi belirir",
-    "glitch": "Sayısal bozulma (glitch) efekti ile gelir",
-    "morph": "Şekil değiştirerek gelir",
-    "wave": "Dalgalanarak gelir",
-    "reveal": "Perde açılır gibi gelir",
-    "stagger": "Basamaklı (stagger) efekt ile gelir",
-    "swing": "Sarkaç gibi sallanarak gelir",
-    "ripple": "Su dalgası (ripple) efekti ile gelir"
-};
-
 const PREVIEW_TEMPLATES = {
     messages: `
         <div class="amb-animated-preview-item" style="opacity:0; display:flex; align-items:flex-start; gap:10px; padding:8px 12px; background:#2b2d31; border-radius:8px; margin-bottom:6px; width:300px;">
@@ -429,6 +399,8 @@ const SETTINGS_SECTIONS = [
 
 const SETTINGS_CSS = `
             .amb-settings-panel {
+    --amb-card-bg: linear-gradient(135deg, #2b2d31 0%, #232428 100%);
+    --amb-accent-bg: linear-gradient(135deg, #5865f2 0%, #4752c4 100%);
     display: flex;
 
     width: 100%;
@@ -527,7 +499,7 @@ const SETTINGS_CSS = `
             .amb-section-desc { 
                 font-size: 14px; color: #b5bac1; margin-bottom: 24px; line-height: 1.5;
                 padding: 12px 16px 12px 20px;
-                background: linear-gradient(135deg, #2b2d31 0%, #232428 100%);
+                background: var(--amb-card-bg);
                 border-radius: 8px;
                 border: 1px solid #1f2023;
                 border-left: 3px solid #5865f2;
@@ -545,7 +517,7 @@ const SETTINGS_CSS = `
                 align-items: center;
                 gap: 16px;
                 padding: 14px 18px;
-                background: linear-gradient(135deg, #2b2d31 0%, #232428 100%);
+                background: var(--amb-card-bg);
                 border: 1px solid #1f2023;
                 border-radius: 10px;
                 transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -647,7 +619,7 @@ const SETTINGS_CSS = `
             /* Settings Elements */
             .amb-setter-row { 
                 display: flex; flex-direction: column; gap: 8px; 
-                background: linear-gradient(135deg, #2b2d31 0%, #232428 100%); 
+                background: var(--amb-card-bg); 
                 padding: 20px; border-radius: 12px; border: 1px solid #1f2023;
                 margin-bottom: 12px;
                 box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
@@ -670,7 +642,7 @@ const SETTINGS_CSS = `
                 box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
             }
             .amb-modal-btn-primary {
-                background: linear-gradient(135deg, #5865f2 0%, #4752c4 100%);
+                background: var(--amb-accent-bg);
                 color: #fff;
             }
             .amb-modal-btn-primary:hover { 
@@ -688,7 +660,7 @@ const SETTINGS_CSS = `
                 box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
             }
             .amb-modal-btn.amb-active {
-                background: linear-gradient(135deg, #5865f2 0%, #4752c4 100%) !important;
+                background: var(--amb-accent-bg) !important;
                 color: #fff !important;
                 box-shadow: 0 4px 14px rgba(88, 101, 242, 0.45) !important;
                 border-color: rgba(88, 101, 242, 0.6) !important;
@@ -702,7 +674,7 @@ const SETTINGS_CSS = `
             }
             .amb-settings-panel input[type="range"]::-webkit-slider-thumb {
                 -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%; 
-                background: linear-gradient(135deg, #5865f2, #7289da); 
+                background: linear-gradient(135deg, #5865f2, #7289da);
                 cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); 
                 box-shadow: 0 2px 8px rgba(88, 101, 242, 0.4), 0 0 0 3px rgba(88, 101, 242, 0.1);
             }
@@ -713,7 +685,7 @@ const SETTINGS_CSS = `
             
             .amb-toggle-row { 
                 display: flex; justify-content: space-between; align-items: center; 
-                background: linear-gradient(135deg, #2b2d31 0%, #232428 100%); 
+                background: var(--amb-card-bg); 
                 padding: 16px; border-radius: 12px; border: 1px solid #1f2023;
                 box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
             }
@@ -737,7 +709,7 @@ const SETTINGS_CSS = `
             .amb-select-el:hover { border-color: #5865f2; }
             .amb-select-el option { background: #1e1f22; color: #dbdee1; }
             .amb-style-select {
-                background: linear-gradient(135deg, #2b2d31 0%, #232428 100%);
+                background: var(--amb-card-bg);
                 border: 1px solid #1f2023;
                 border-radius: 8px;
                 color: #dbdee1;
@@ -764,7 +736,7 @@ const SETTINGS_CSS = `
                 flex-wrap: wrap;
                 gap: 6px;
                 padding: 8px;
-                background: linear-gradient(135deg, #2b2d31 0%, #232428 100%);
+                background: var(--amb-card-bg);
                 border: 1px solid #1f2023;
                 border-radius: 8px;
                 overflow-x: auto;
@@ -794,7 +766,7 @@ const SETTINGS_CSS = `
                 border-color: #5865f2;
             }
             .amb-style-item.active {
-                background: linear-gradient(135deg, #5865f2 0%, #4752c4 100%);
+                background: var(--amb-accent-bg);
                 color: #fff;
                 border-color: #5865f2;
                 box-shadow: 0 2px 8px rgba(88, 101, 242, 0.3);
@@ -819,7 +791,7 @@ const SETTINGS_CSS = `
             .amb-enter-panel,
             .amb-exit-panel {
                 flex: 1;
-                background: linear-gradient(135deg, #2b2d31 0%, #232428 100%);
+                background: var(--amb-card-bg);
                 border: 1px solid #1f2023;
                 border-radius: 12px;
                 padding: 18px;
@@ -934,7 +906,7 @@ const SETTINGS_CSS = `
                 align-items: center;
                 gap: 12px;
                 padding: 14px 18px;
-                background: linear-gradient(135deg, #2b2d31 0%, #232428 100%);
+                background: var(--amb-card-bg);
                 border: 1px solid #1f2023;
                 border-radius: 10px;
                 margin-bottom: 16px;
@@ -1037,20 +1009,20 @@ const DEFAULT_SETTINGS = {
     activePreset: "default",
     serverAnimProfiles: {},
     anim: {
-        messages: { style: "slide-up", duration: 300, enabled: true, delay: 0, stagger: 30, enterDuration: 300, exitDuration: 200, enterDirection: "auto", exitDirection: "auto", enterEasing: "auto", exitEasing: "auto", enableOverflow: false },
-        channelSwitch: { style: "blur", duration: 240, enabled: true, delay: 0, stagger: 0, enterDuration: 240, exitDuration: 160, enterDirection: "auto", exitDirection: "auto", enterEasing: "auto", exitEasing: "auto", enableOverflow: false },
-        serverSwitch: { style: "spring", duration: 380, enabled: true, delay: 0, stagger: 0, enterDuration: 380, exitDuration: 220, enterDirection: "auto", exitDirection: "auto", enterEasing: "auto", exitEasing: "auto", enableOverflow: false },
-        sidebar: { style: "slide-right", duration: 260, enabled: true, delay: 0, stagger: 0, enterDuration: 260, exitDuration: 180, enterDirection: "auto", exitDirection: "auto", enterEasing: "auto", exitEasing: "auto", enableOverflow: false },
-        memberSidebar: { style: "slide-left", duration: 260, enabled: true, delay: 0, stagger: 0, enterDuration: 260, exitDuration: 180, enterDirection: "auto", exitDirection: "auto", enterEasing: "auto", exitEasing: "auto", enableOverflow: false },
-        modals: { style: "spring", duration: 360, enabled: true, delay: 0, stagger: 0, enterDuration: 360, exitDuration: 220, enterDirection: "auto", exitDirection: "auto", enterEasing: "auto", exitEasing: "auto", enableOverflow: false },
-        emojiPicker: { style: "scale", duration: 220, enabled: true, delay: 0, stagger: 0, enterDuration: 220, exitDuration: 150, enterDirection: "auto", exitDirection: "auto", enterEasing: "auto", exitEasing: "auto", enableOverflow: false },
-        toasts: { style: "slide-right", duration: 300, enabled: true, delay: 0, stagger: 0, enterDuration: 300, exitDuration: 200, enterDirection: "auto", exitDirection: "auto", enterEasing: "auto", exitEasing: "auto", enableOverflow: false },
-        contextMenu: { style: "scale", duration: 190, enabled: true, delay: 0, stagger: 0, enterDuration: 190, exitDuration: 130, enterDirection: "auto", exitDirection: "auto", enterEasing: "auto", exitEasing: "auto", enableOverflow: false },
-        channelList: { style: "slide-up", duration: 240, enabled: true, delay: 0, stagger: 25, enterDuration: 240, exitDuration: 160, enterDirection: "auto", exitDirection: "auto", enterEasing: "auto", exitEasing: "auto", enableOverflow: false },
-        memberList: { style: "slide-up", duration: 240, enabled: true, delay: 0, stagger: 25, enterDuration: 240, exitDuration: 160, enterDirection: "auto", exitDirection: "auto", enterEasing: "auto", exitEasing: "auto", enableOverflow: false },
-        searchResults: { style: "slide-up", duration: 300, enabled: true, delay: 0, stagger: 45, enterDuration: 300, exitDuration: 200, enterDirection: "auto", exitDirection: "auto", enterEasing: "auto", exitEasing: "auto", enableOverflow: false },
-        userProfile: { style: "zoom-in", duration: 380, enabled: true, delay: 0, stagger: 0, enterDuration: 380, exitDuration: 240, enterDirection: "auto", exitDirection: "auto", enterEasing: "auto", exitEasing: "auto", enableOverflow: false },
-        statusBar: { style: "slide-up", duration: 200, enabled: true, delay: 0, stagger: 0, enterDuration: 200, exitDuration: 140, enterDirection: "auto", exitDirection: "auto", enterEasing: "auto", exitEasing: "auto", enableOverflow: false },
+        messages: { style: "slide-up", duration: 300, enabled: true, delay: 0, stagger: 30, enterDuration: 300, exitDuration: 200, enterDirection: "auto", exitDirection: "auto", enterEasing: "auto", exitEasing: "auto", enterOverflow: false, exitOverflow: false },
+        channelSwitch: { style: "blur", duration: 240, enabled: true, delay: 0, stagger: 0, enterDuration: 240, exitDuration: 160, enterDirection: "auto", exitDirection: "auto", enterEasing: "auto", exitEasing: "auto", enterOverflow: false, exitOverflow: false },
+        serverSwitch: { style: "spring", duration: 380, enabled: true, delay: 0, stagger: 0, enterDuration: 380, exitDuration: 220, enterDirection: "auto", exitDirection: "auto", enterEasing: "auto", exitEasing: "auto", enterOverflow: false, exitOverflow: false },
+        sidebar: { style: "slide-right", duration: 260, enabled: true, delay: 0, stagger: 0, enterDuration: 260, exitDuration: 180, enterDirection: "auto", exitDirection: "auto", enterEasing: "auto", exitEasing: "auto", enterOverflow: false, exitOverflow: false },
+        memberSidebar: { style: "slide-left", duration: 260, enabled: true, delay: 0, stagger: 0, enterDuration: 260, exitDuration: 180, enterDirection: "auto", exitDirection: "auto", enterEasing: "auto", exitEasing: "auto", enterOverflow: false, exitOverflow: false },
+        modals: { style: "spring", duration: 360, enabled: true, delay: 0, stagger: 0, enterDuration: 360, exitDuration: 220, enterDirection: "auto", exitDirection: "auto", enterEasing: "auto", exitEasing: "auto", enterOverflow: false, exitOverflow: false },
+        emojiPicker: { style: "scale", duration: 220, enabled: true, delay: 0, stagger: 0, enterDuration: 220, exitDuration: 150, enterDirection: "auto", exitDirection: "auto", enterEasing: "auto", exitEasing: "auto", enterOverflow: false, exitOverflow: false },
+        toasts: { style: "slide-right", duration: 300, enabled: true, delay: 0, stagger: 0, enterDuration: 300, exitDuration: 200, enterDirection: "auto", exitDirection: "auto", enterEasing: "auto", exitEasing: "auto", enterOverflow: false, exitOverflow: false },
+        contextMenu: { style: "scale", duration: 190, enabled: true, delay: 0, stagger: 0, enterDuration: 190, exitDuration: 130, enterDirection: "auto", exitDirection: "auto", enterEasing: "auto", exitEasing: "auto", enterOverflow: false, exitOverflow: false },
+        channelList: { style: "slide-up", duration: 240, enabled: true, delay: 0, stagger: 25, enterDuration: 240, exitDuration: 160, enterDirection: "auto", exitDirection: "auto", enterEasing: "auto", exitEasing: "auto", enterOverflow: false, exitOverflow: false },
+        memberList: { style: "slide-up", duration: 240, enabled: true, delay: 0, stagger: 25, enterDuration: 240, exitDuration: 160, enterDirection: "auto", exitDirection: "auto", enterEasing: "auto", exitEasing: "auto", enterOverflow: false, exitOverflow: false },
+        searchResults: { style: "slide-up", duration: 300, enabled: true, delay: 0, stagger: 45, enterDuration: 300, exitDuration: 200, enterDirection: "auto", exitDirection: "auto", enterEasing: "auto", exitEasing: "auto", enterOverflow: false, exitOverflow: false },
+        userProfile: { style: "zoom-in", duration: 380, enabled: true, delay: 0, stagger: 0, enterDuration: 380, exitDuration: 240, enterDirection: "auto", exitDirection: "auto", enterEasing: "auto", exitEasing: "auto", enterOverflow: false, exitOverflow: false },
+        statusBar: { style: "slide-up", duration: 200, enabled: true, delay: 0, stagger: 0, enterDuration: 200, exitDuration: 140, enterDirection: "auto", exitDirection: "auto", enterEasing: "auto", exitEasing: "auto", enterOverflow: false, exitOverflow: false },
     }
 };
 
@@ -1180,7 +1152,10 @@ module.exports = class AmbientProfilePopouts {
             // Backward-compat: migrate legacy "ease-in-out" to "auto" so per-style curves are used
             if (base.anim[k].enterEasing === "ease-in-out") { base.anim[k].enterEasing = "auto"; needsMigration = true; }
             if (base.anim[k].exitEasing === "ease-in-out") { base.anim[k].exitEasing = "auto"; needsMigration = true; }
-            if (base.anim[k].enableOverflow === undefined) base.anim[k].enableOverflow = false;
+            if (base.anim[k].enterOverflow === undefined && base.anim[k].enableOverflow !== undefined) { base.anim[k].enterOverflow = base.anim[k].enableOverflow; needsMigration = true; }
+            if (base.anim[k].exitOverflow === undefined && base.anim[k].enableOverflow !== undefined) { base.anim[k].exitOverflow = base.anim[k].enableOverflow; needsMigration = true; }
+            if (base.anim[k].enterOverflow === undefined) base.anim[k].enterOverflow = false;
+            if (base.anim[k].exitOverflow === undefined) base.anim[k].exitOverflow = false;
         }
         if (needsMigration) {
             BdApi.Data.save(PLUGIN_NAME, "settings", base);
@@ -1220,7 +1195,10 @@ module.exports = class AmbientProfilePopouts {
         this._redoStack.push(JSON.stringify(current));
         const prev = JSON.parse(this._undoStack.pop());
         BdApi.Data.save(PLUGIN_NAME, "settings", prev);
-        this.applySettingsToCSS(this.getSettings());
+        const s = this.getSettings();
+        this.applySettingsToCSS(s);
+        this.patchInvisibleTyping();
+        this.applyPlatformIndicatorSettings(s);
         this.toast("Değişiklik geri alındı.", "success");
     }
 
@@ -1232,7 +1210,10 @@ module.exports = class AmbientProfilePopouts {
         this._undoStack.push(JSON.stringify(current));
         const next = JSON.parse(this._redoStack.pop());
         BdApi.Data.save(PLUGIN_NAME, "settings", next);
-        this.applySettingsToCSS(this.getSettings());
+        const s = this.getSettings();
+        this.applySettingsToCSS(s);
+        this.patchInvisibleTyping();
+        this.applyPlatformIndicatorSettings(s);
         this.toast("Değişiklik ileri alındı.", "success");
     }
 
@@ -1250,8 +1231,7 @@ module.exports = class AmbientProfilePopouts {
         const s = this.getSettings();
         if (!s.serverAnimProfiles) s.serverAnimProfiles = {};
         s.serverAnimProfiles[guildId] = JSON.parse(JSON.stringify(animData));
-        this.saveSettings(s);
-        this.applySettingsToCSS(s);
+        this._commitSettings(s);
         this.toast(`Sunucu animasyon profili kaydedildi.`, "success");
     }
 
@@ -1259,8 +1239,7 @@ module.exports = class AmbientProfilePopouts {
         const s = this.getSettings();
         if (s.serverAnimProfiles?.[guildId]) {
             delete s.serverAnimProfiles[guildId];
-            this.saveSettings(s);
-            this.applySettingsToCSS(s);
+            this._commitSettings(s);
             this.toast(`Sunucu animasyon profili silindi (global ayarlar kullanılıyor).`, "success");
         }
     }
@@ -1346,6 +1325,8 @@ module.exports = class AmbientProfilePopouts {
                 clearTimeout(this._previewLoopTimer);
                 this._previewLoopTimer = null;
             }
+            if (this._rafAnimPending) { cancelAnimationFrame(this._rafAnimPending); this._rafAnimPending = null; }
+            if (this._modalBodyObserver) { this._modalBodyObserver.disconnect(); this._modalBodyObserver = null; }
             this._previewAnimating = false;
         };
         const closeModal = () => {
@@ -1382,6 +1363,21 @@ module.exports = class AmbientProfilePopouts {
 
         // Append to body
         document.body.appendChild(modalOverlay);
+
+        // Auto-close modal if its parent settings panel is removed from DOM
+        const bodyObserver = new MutationObserver((muts) => {
+            for (const m of muts) {
+                for (const n of m.removedNodes) {
+                    if (n === modalOverlay || (n.contains && n.contains(modalOverlay))) {
+                        cleanupModal();
+                        bodyObserver.disconnect();
+                        return;
+                    }
+                }
+            }
+        });
+        bodyObserver.observe(document.body, { childList: true });
+        this._modalBodyObserver = bodyObserver;
 
         // BetterAnimations tarzı modern CSS
         const styleBlock = document.createElement("style");
@@ -1423,7 +1419,7 @@ module.exports = class AmbientProfilePopouts {
             btn.addEventListener("click", () => {
                 document.querySelectorAll('.amb-sidebar-item').forEach(el => el.classList.remove('active'));
                 btn.classList.add('active');
-                previousSection = item.id;
+                previousSection = activeSection;
                 showSection(item.id);
             });
             sidebar.appendChild(btn);
@@ -1532,7 +1528,7 @@ module.exports = class AmbientProfilePopouts {
             let wlEnabled = !!wl.enabled;
             const updateWlUI = () => {
                 wlBtn.style.background = wlEnabled
-                    ? "linear-gradient(135deg,#5865f2 0%,#4752c4 100%)"
+                    ? "var(--amb-accent-bg)"
                     : "linear-gradient(135deg,#4e5058 0%,#3f4147 100%)";
                 wlDot.style.left = wlEnabled ? "25px" : "3px";
             };
@@ -1544,6 +1540,12 @@ module.exports = class AmbientProfilePopouts {
                 next.serverWhitelist = next.serverWhitelist || { enabled: false, guildIds: [] };
                 next.serverWhitelist.enabled = wlEnabled;
                 this.saveSettings(next);
+                this._guildAllowedCache = null;
+                if (this.isCurrentGuildAllowed()) {
+                    this.injectAnimCSS(this.getSettingsRef());
+                } else {
+                    BdApi.DOM.removeStyle("AmbientAnimCSS");
+                }
                 this.toast(wlEnabled ? "Sunucu bazlı yükleme açıldı." : "Sunucu bazlı yükleme kapatıldı.", "success");
             });
 
@@ -1561,6 +1563,12 @@ module.exports = class AmbientProfilePopouts {
                 next.serverWhitelist = next.serverWhitelist || { enabled: false, guildIds: [] };
                 next.serverWhitelist.guildIds = Array.from(selected);
                 this.saveSettings(next);
+                this._guildAllowedCache = null;
+                if (this.isCurrentGuildAllowed()) {
+                    this.injectAnimCSS(this.getSettingsRef());
+                } else {
+                    BdApi.DOM.removeStyle("AmbientAnimCSS");
+                }
                 updateCount();
             };
 
@@ -1723,7 +1731,7 @@ module.exports = class AmbientProfilePopouts {
                         <div class="amb-area-label">${cfg.label}</div>
                         <div class="amb-area-desc">${cfg.description}</div>
                     </div>
-                    <span class="amb-style-badge" id="badge-${areaKey}" style="font-size:11px;font-weight:600;color:#fff;background:linear-gradient(135deg,#5865f2 0%,#4752c4 100%);padding:3px 10px;border-radius:12px;text-transform:uppercase;letter-spacing:0.5px;">${currentStyle==='none'?'Kapalı':(ANIM_STYLE_LABELS[currentStyle]||currentStyle)}</span>
+                    <span class="amb-style-badge" id="badge-${areaKey}" style="font-size:11px;font-weight:600;color:#fff;background:var(--amb-accent-bg);padding:3px 10px;border-radius:12px;text-transform:uppercase;letter-spacing:0.5px;">${currentStyle==='none'?'Kapalı':(ANIM_STYLE_LABELS[currentStyle]||currentStyle)}</span>
                     <button class="amb-toggle-btn area-toggle-btn" data-area="${areaKey}" type="button" style="width:40px;height:20px;border:0;border-radius:10px;cursor:pointer;position:relative;transition:all 0.2s ease;background:${isEnabled?'#5865f2':'#4e5058'};">
                         <span class="amb-toggle-dot" style="position:absolute;top:2px;left:${isEnabled?'20px':'2px'};width:16px;height:16px;border-radius:50%;background:#fff;transition:all 0.2s ease;box-shadow:0 2px 4px rgba(0,0,0,0.2);"></span>
                     </button>
@@ -1759,7 +1767,7 @@ module.exports = class AmbientProfilePopouts {
                             <select class="amb-easing-select enter-easing-select" data-area="${areaKey}" ${!isEnabled?'disabled':''}>${buildEasingOptions(a.enterEasing||'auto')}</select>
                         </div>
                         <div class="amb-control-row">
-                            <label class="amb-overflow-check"><input type="checkbox" class="enter-overflow-check" data-area="${areaKey}" ${a.enableOverflow?'checked':''} ${!isEnabled?'disabled':''}><span>Taşma (Overflow)</span></label>
+                            <label class="amb-overflow-check"><input type="checkbox" class="enter-overflow-check" data-area="${areaKey}" ${(a.enterOverflow !== undefined ? a.enterOverflow : a.enableOverflow)?'checked':''} ${!isEnabled?'disabled':''}><span>Taşma (Overflow)</span></label>
                         </div>
                     </div>
                     <div class="amb-exit-panel">
@@ -1781,7 +1789,7 @@ module.exports = class AmbientProfilePopouts {
                             <select class="amb-easing-select exit-easing-select" data-area="${areaKey}" ${!isEnabled?'disabled':''}>${buildEasingOptions(a.exitEasing||'auto')}</select>
                         </div>
                         <div class="amb-control-row">
-                            <label class="amb-overflow-check"><input type="checkbox" class="exit-overflow-check" data-area="${areaKey}" ${a.enableOverflow?'checked':''} ${!isEnabled?'disabled':''}><span>Taşma (Overflow)</span></label>
+                            <label class="amb-overflow-check"><input type="checkbox" class="exit-overflow-check" data-area="${areaKey}" ${(a.exitOverflow !== undefined ? a.exitOverflow : a.enableOverflow)?'checked':''} ${!isEnabled?'disabled':''}><span>Taşma (Overflow)</span></label>
                         </div>
                     </div>
                 </div>
@@ -1825,8 +1833,7 @@ module.exports = class AmbientProfilePopouts {
             toggleBtn.addEventListener('click', () => {
                 const s = this.getSettings();
                 s.anim[areaKey].enabled = !(s.anim[areaKey].enabled !== false);
-                this.saveSettings(s);
-                this.applySettingsToCSS(s);
+                this._commitSettings(s);
                 const on = s.anim[areaKey].enabled;
                 toggleBtn.style.background = on ? '#5865f2' : '#4e5058';
                 toggleBtn.querySelector('.amb-toggle-dot').style.left = on ? '20px' : '2px';
@@ -1846,8 +1853,7 @@ module.exports = class AmbientProfilePopouts {
                     const ns = item.dataset.style;
                     const s = this.getSettings();
                     s.anim[areaKey].style = ns;
-                    this.saveSettings(s);
-                    this.applySettingsToCSS(s);
+                    this._commitSettings(s);
                     styleBar.querySelectorAll('.amb-style-item').forEach(i => i.classList.remove('active'));
                     item.classList.add('active');
                     const badge = animDetailSettings.querySelector(`#badge-${areaKey}`);
@@ -1891,13 +1897,17 @@ module.exports = class AmbientProfilePopouts {
                 for (const [cls, field] of Object.entries(changeFieldMap)) {
                     if (target.classList.contains(cls)) {
                         const s = this.getSettings(); s.anim[areaKey][field] = target.value;
-                        this.saveSettings(s);
+                        this._commitSettings(s);
                         return;
                     }
                 }
-                if (target.classList.contains('enter-overflow-check') || target.classList.contains('exit-overflow-check')) {
-                    const s = this.getSettings(); s.anim[areaKey].enableOverflow = target.checked;
-                    this.saveSettings(s);
+                if (target.classList.contains('enter-overflow-check')) {
+                    const s = this.getSettings(); s.anim[areaKey].enterOverflow = target.checked;
+                    this._commitSettings(s);
+                }
+                if (target.classList.contains('exit-overflow-check')) {
+                    const s = this.getSettings(); s.anim[areaKey].exitOverflow = target.checked;
+                    this._commitSettings(s);
                 }
             });
 
@@ -1925,10 +1935,10 @@ module.exports = class AmbientProfilePopouts {
                 if (exitDir) s.anim[areaKey].exitDirection = exitDir.value;
                 if (enterEas) s.anim[areaKey].enterEasing = enterEas.value;
                 if (exitEas) s.anim[areaKey].exitEasing = exitEas.value;
-                s.anim[areaKey].enableOverflow = (enterOverflow?.checked || exitOverflow?.checked) || false;
+                if (enterOverflow) s.anim[areaKey].enterOverflow = enterOverflow.checked;
+                if (exitOverflow) s.anim[areaKey].exitOverflow = exitOverflow.checked;
 
-                this.saveSettings(s);
-                this.applySettingsToCSS(s);
+                this._commitSettings(s);
                 e.currentTarget.textContent = 'Uygulandı ✓';
                 e.currentTarget.style.background = 'linear-gradient(135deg, #3ba55c, #2d7d46)';
                 setTimeout(() => { e.currentTarget.textContent = 'Uygula'; e.currentTarget.style.background = ''; }, 1500);
@@ -1998,8 +2008,7 @@ module.exports = class AmbientProfilePopouts {
             if (!btn) return;
             const cur = this.getSettings();
             cur.motionQuality = btn.dataset.quality;
-            this.saveSettings(cur);
-            this.applySettingsToCSS(cur);
+            this._commitSettings(cur);
             syncQualityPicker();
             this.toast(`Animasyon kalite modu: ${btn.textContent}`, "success");
         });
@@ -2041,8 +2050,7 @@ module.exports = class AmbientProfilePopouts {
             const newStyle = select.value;
             const cur = this.getSettings();
             cur.anim[areaKey].style = newStyle;
-            this.saveSettings(cur);
-            this.applySettingsToCSS(cur);
+            this._commitSettings(cur);
             this.toast(`${AREA_CONFIG[areaKey]?.label || areaKey}: ${ANIM_STYLE_LABELS[newStyle] || newStyle}`, "success");
         });
         areaList.addEventListener('click', (e) => {
@@ -2101,21 +2109,22 @@ module.exports = class AmbientProfilePopouts {
         const status = row.querySelector('.amb-setter-subdesc');
         dot.style.transition = "left 0.2s cubic-bezier(0.4,0,0.2,1)";
         let state = this.getSettingsRef()[settingKey] || false;
-        const updateUI = () => {
-            btn.style.background = state
-                ? "linear-gradient(135deg,#5865f2 0%,#4752c4 100%)"
+        const updateUI = (val) => {
+            state = val;
+            btn.style.background = val
+                ? "var(--amb-accent-bg)"
                 : "linear-gradient(135deg,#4e5058 0%,#3f4147 100%)";
-            dot.style.left = state ? "25px" : "3px";
-            status.textContent = state ? "✅ Aktif" : "⭕ Kapalı";
+            dot.style.left = val ? "25px" : "3px";
+            status.textContent = val ? "✅ Aktif" : "⭕ Kapalı";
         };
-        updateUI();
+        updateUI(state);
         btn.addEventListener("click", () => {
-            state = !state;
-            updateUI();
+            const newVal = !(this.getSettingsRef()[settingKey] || false);
+            updateUI(newVal);
             const cur = this.getSettings();
-            cur[settingKey] = state;
+            cur[settingKey] = newVal;
             this.saveSettings(cur);
-            if (onChangeCb) onChangeCb(state, cur);
+            if (onChangeCb) onChangeCb(newVal, cur);
         });
         return row;
     }
@@ -2148,12 +2157,21 @@ module.exports = class AmbientProfilePopouts {
                 for (const [areaKey, presetArea] of Object.entries(preset.anim)) {
                     if (cur.anim[areaKey]) {
                         Object.assign(cur.anim[areaKey], presetArea);
+                        // Sync enter/exit duration from preset's base values
+                        cur.anim[areaKey].enterDuration = presetArea.duration;
+                        cur.anim[areaKey].exitDuration = Math.round(presetArea.duration * 0.7);
+                        // Reset direction/easing/overflow to defaults
+                        cur.anim[areaKey].enterDirection = "auto";
+                        cur.anim[areaKey].exitDirection = "auto";
+                        cur.anim[areaKey].enterEasing = "auto";
+                        cur.anim[areaKey].exitEasing = "auto";
+                        cur.anim[areaKey].enterOverflow = false;
+                        cur.anim[areaKey].exitOverflow = false;
                     } else {
                         cur.anim[areaKey] = JSON.parse(JSON.stringify(presetArea));
                     }
                 }
-                this.saveSettings(cur);
-                this.applySettingsToCSS(cur);
+                this._commitSettings(cur);
                 this.toast(`${preset.name} paketi başarıyla uygulandı!`, "success");
                 setTimeout(() => {
                     const evt = new MouseEvent("click", { bubbles: true, cancelable: true, view: window });
@@ -2221,17 +2239,21 @@ module.exports = class AmbientProfilePopouts {
                 cur.layoutAnimationsEnabled = false;
             } else {
                 const calm = btn.dataset.mode === "calm";
-                Object.assign(cur.anim.messages, { style: calm ? "fade" : "slide-up", duration: calm ? 180 : 260, enabled: true, delay: 0, stagger: 0 });
-                Object.assign(cur.anim.modals, { style: calm ? "scale" : "spring", duration: calm ? 190 : 320, enabled: true, delay: 0, stagger: 0 });
-                Object.assign(cur.anim.contextMenu, { style: "scale", duration: calm ? 140 : 180, enabled: true, delay: 0, stagger: 0 });
-                Object.assign(cur.anim.emojiPicker, { style: "scale", duration: calm ? 160 : 220, enabled: true, delay: 0, stagger: 0 });
-                Object.assign(cur.anim.toasts, { style: "slide-right", duration: calm ? 200 : 280, enabled: true, delay: 0, stagger: 0 });
+                const msgDur = calm ? 180 : 260;
+                const modalDur = calm ? 190 : 320;
+                const ctxDur = calm ? 140 : 180;
+                const emojiDur = calm ? 160 : 220;
+                const toastDur = calm ? 200 : 280;
+                Object.assign(cur.anim.messages, { style: calm ? "fade" : "slide-up", duration: msgDur, enabled: true, delay: 0, stagger: 0, enterDuration: msgDur, exitDuration: Math.round(msgDur * 0.7) });
+                Object.assign(cur.anim.modals, { style: calm ? "scale" : "spring", duration: modalDur, enabled: true, delay: 0, stagger: 0, enterDuration: modalDur, exitDuration: Math.round(modalDur * 0.7) });
+                Object.assign(cur.anim.contextMenu, { style: "scale", duration: ctxDur, enabled: true, delay: 0, stagger: 0, enterDuration: ctxDur, exitDuration: Math.round(ctxDur * 0.7) });
+                Object.assign(cur.anim.emojiPicker, { style: "scale", duration: emojiDur, enabled: true, delay: 0, stagger: 0, enterDuration: emojiDur, exitDuration: Math.round(emojiDur * 0.7) });
+                Object.assign(cur.anim.toasts, { style: "slide-right", duration: toastDur, enabled: true, delay: 0, stagger: 0, enterDuration: toastDur, exitDuration: Math.round(toastDur * 0.7) });
             }
 
             this._activeMode = btn.dataset.mode;
             syncModeButtons();
-            this.saveSettings(cur);
-            this.applySettingsToCSS(cur);
+            this._commitSettings(cur);
             this.toast(btn.dataset.mode === "off" ? "Tüm animasyonlar kapatıldı." : `${btn.textContent} animasyon modu uygulandı.`, "success");
         });
         group.appendChild(modeRow);
@@ -2273,11 +2295,19 @@ module.exports = class AmbientProfilePopouts {
                 if (!this._sliderDebounceTimers) this._sliderDebounceTimers = {};
                 clearTimeout(this._sliderDebounceTimers[cfg.key]);
                 this._sliderDebounceTimers[cfg.key] = setTimeout(() => {
-                    const cur = this.getSettings();
-                    cur[cfg.key] = v;
-                    this.saveSettings(cur);
-                    this.applySettingsToCSS(cur);
+                    // Live CSS update without pushing to undo stack
+                    const ref = this.getSettingsRef();
+                    ref[cfg.key] = v;
+                    this._settingsCache = null;
+                    this.applySettingsToCSS(ref);
                 }, 120);
+            });
+            input.addEventListener("change", () => {
+                // Push to undo stack only on slider release
+                const v = parseFloat(input.value);
+                const cur = this.getSettings();
+                cur[cfg.key] = v;
+                this._commitSettings(cur);
             });
             group.appendChild(row);
         }
@@ -2306,8 +2336,7 @@ module.exports = class AmbientProfilePopouts {
         select.addEventListener("change", () => {
             const next = this.getSettings();
             next.motionQuality = select.value;
-            this.saveSettings(next);
-            this.applySettingsToCSS(next);
+            this._commitSettings(next);
             val.textContent = select.value;
         });
         group.appendChild(row);
@@ -2323,7 +2352,6 @@ module.exports = class AmbientProfilePopouts {
                 "Animasyon kartlarının üzerine gelince önizlemeyi otomatik oynatır. Kapalıyken sadece oynat düğmesi çalışır.",
                 "quickPreview",
                 (state, cur) => {
-                    this.saveSettings(cur);
                     this.toast(state ? "Canlı önizleme açıldı." : "Canlı önizleme kapatıldı.", "success");
                 }
             ),
@@ -2511,8 +2539,12 @@ module.exports = class AmbientProfilePopouts {
                     if (!imported || typeof imported !== "object" || !imported.anim) {
                         throw new Error("Geçersiz ayar dosyası formatı.");
                     }
+                    this._settingsCache = null;
                     this.saveSettings(imported);
-                    this.applySettingsToCSS(this.getSettings());
+                    const migrated = this.getSettings();
+                    this.applySettingsToCSS(migrated);
+                    this.patchInvisibleTyping();
+                    this.applyPlatformIndicatorSettings(migrated);
                     this.toast("Ayarlar başarıyla geri yüklendi!", "success");
                     this._lastActiveSection = activeSection;
                     cleanupModal();
@@ -2529,8 +2561,11 @@ module.exports = class AmbientProfilePopouts {
         const resetBtn = document.createElement("button");
         resetBtn.className = "amb-btn-reset"; resetBtn.textContent = "Varsayılana Sıfırla";
         resetBtn.addEventListener("click", () => {
-            this.saveSettings(JSON.parse(JSON.stringify(DEFAULT_SETTINGS)));
-            this.applySettingsToCSS(this.getSettings());
+            const resetS = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+            this.saveSettings(resetS);
+            this.applySettingsToCSS(resetS);
+            this.patchInvisibleTyping();
+            this.applyPlatformIndicatorSettings(resetS);
             this.toast("Eklenti ayarları fabrika ayarlarına döndürüldü.", "success");
             this._lastActiveSection = activeSection;
             cleanupModal();
@@ -2548,6 +2583,11 @@ module.exports = class AmbientProfilePopouts {
         this.injectCSS(s);
         this.injectAnimCSS(s);
         // Static keyframes are injected once via ANIM_KEYFRAMES_CSS and are NOT regenerated here
+    }
+
+    _commitSettings(s) {
+        this.saveSettings(s);
+        this.applySettingsToCSS(s);
     }
 
     // ─── Lifecycle ───────────────────────────────────────────────────────────────
@@ -2667,7 +2707,6 @@ module.exports = class AmbientProfilePopouts {
         // Start the enter→exit loop
         playEnter();
 
-        const lastItem = items[items.length - 1];
         const totalEnterTime = duration + (items.length - 1) * stagger;
         const totalExitTime = exitDuration + (items.length - 1) * (stagger * 0.5);
 
@@ -2710,6 +2749,117 @@ module.exports = class AmbientProfilePopouts {
             this._typingPatch = () => { TypingModule.startTyping = original; };
         } catch (err) {
             console.error(`${PLUGIN_NAME}: patchInvisibleTyping hata:`, err);
+        }
+    }
+
+    // ─── Gerçek Çıkış Animasyonları (unmount geciktirme) ────────────────────────
+    // BetterAnimations yaklaşımı: Discord'un kapatma aksiyonlarını patch'leyip
+    // GERÇEK elementi önce animasyonla çıkarır, animasyon bitince orijinal
+    // kapatma fonksiyonunu çağırır. Clone tabanlı sisteme göre çok daha
+    // pürüzsüzdür çünkü element kaldırılıp kopyalanmaz.
+
+    patchRealExitAnimations() {
+        this._realExitPending = {};
+
+        const patchClose = (moduleKeys, methodName, areaKey, selector) => {
+            try {
+                // Modül arama: önce tüm anahtarlarla, sonra tek anahtarla,
+                // son çare olarak searchExports ile iç export'larda ara
+                const mod = BdApi.Webpack.getByKeys(...moduleKeys)
+                    || BdApi.Webpack.getByKeys(methodName)
+                    || BdApi.Webpack.getModule(m => m && typeof m[methodName] === "function", { searchExports: true });
+                if (!mod || typeof mod[methodName] !== "function") {
+                    console.warn(`${PLUGIN_NAME}: ${methodName} modülü bulunamadı, ${areaKey} gerçek çıkış animasyonu devre dışı (clone sistemi kullanılacak).`);
+                    return;
+                }
+                BdApi.Patcher.instead(PLUGIN_NAME, mod, methodName, (thisObj, args, original) => {
+                    const scheduled = this._playRealExit(areaKey, selector, () => original.apply(thisObj, args));
+                    if (!scheduled) return original.apply(thisObj, args);
+                });
+                console.log(`${PLUGIN_NAME}: gerçek çıkış animasyonu aktif → ${areaKey} (${methodName})`);
+            } catch (err) {
+                console.warn(`${PLUGIN_NAME}: ${areaKey} gerçek çıkış patch hatası:`, err);
+            }
+        };
+
+        // Sağ tık menüleri
+        patchClose(["closeContextMenu", "openContextMenu"], "closeContextMenu", "contextMenu", '[class*="menu_"][role="menu"]');
+        // Modallar (en üstteki dialog hedeflenir)
+        patchClose(["openModal", "closeModal"], "closeModal", "modals", '[class*="modal_"],[role="dialog"][class*="root_"]');
+        // Emoji / expression picker
+        patchClose(["closeExpressionPicker", "openExpressionPicker"], "closeExpressionPicker", "emojiPicker", '[class*="emojiPicker_"],[class*="expressionPicker"]');
+    }
+
+    _playRealExit(areaKey, selector, closeFn) {
+        try {
+            if (!this._realExitPending) this._realExitPending = {};
+            // Aynı alan için bekleyen bir çıkış varsa hemen bitir (hızlı ardışık kapatmalar)
+            if (this._realExitPending[areaKey]) this._realExitPending[areaKey]();
+
+            const s = this.getSettingsRef();
+            if (this.shouldReduceMotion(s)) return false;
+            if (!this.isCurrentGuildAllowed()) return false;
+
+            const effectiveAnim = this.getEffectiveAnim(s);
+            const cfg = effectiveAnim?.[areaKey];
+            if (!cfg || !cfg.enabled || cfg.style === "none") return false;
+            if (LAYOUT_ANIM_AREAS.has(areaKey) && !s.layoutAnimationsEnabled) return false;
+
+            // En üstteki (son) eşleşen elementi hedefle
+            const els = document.querySelectorAll(selector);
+            const el = els.length ? els[els.length - 1] : null;
+            if (!el || el.classList.contains("amb-real-exit")) return false;
+            if (el.closest?.(".amb-modal-overlay,.amb-settings-panel")) return false;
+
+            const style = cfg.style || "fade";
+            const exitDir = cfg.exitDirection || "auto";
+            let exitKeyframe = style;
+            if (exitDir !== "auto" && EXIT_DIR_MAP[exitDir] && style.startsWith("slide")) {
+                exitKeyframe = EXIT_DIR_MAP[exitDir];
+            }
+            const qualityScale = this.getQualityScale(s);
+            const exitDuration = Math.max(80, Math.round((cfg.exitDuration || cfg.duration || 180) * qualityScale));
+            const exitEasing = (cfg.exitEasing && cfg.exitEasing !== "auto")
+                ? cfg.exitEasing
+                : this.getMotionEasing(style, areaKey);
+
+            // Giriş animasyonu kalıntılarını temizle, elementi etkileşime kapat
+            el.classList.remove(`ambient-anim-${areaKey}`);
+            el.classList.add("amb-real-exit");
+            el.style.animationDelay = "";
+            el.style.pointerEvents = "none";
+            el.style.animation = `amb-${exitKeyframe} ${exitDuration}ms ${exitEasing} reverse both`;
+
+            let done = false;
+            let safetyTimer = null;
+            const finish = () => {
+                if (done) return;
+                done = true;
+                if (safetyTimer) clearTimeout(safetyTimer);
+                if (this._realExitPending) delete this._realExitPending[areaKey];
+                // Element zaten React tarafından kaldırıldıysa (ör. yeni menü açıldı)
+                // orijinal kapatmayı ÇAĞIRMA — yeni açılan öğeyi kapatabilir.
+                if (document.body.contains(el)) {
+                    try { closeFn(); } catch (err) { console.warn(`${PLUGIN_NAME}: gerçek çıkış kapatma hatası:`, err); }
+                }
+                // Güvenlik ağı: `reverse both` animasyon opacity:0'da biter. Kapatma
+                // etkisiz kaldıysa (yanlış modül / node yeniden kullanıldı) element
+                // kalıcı görünmez kalmasın — kısa süre sonra hâlâ DOM'daysa stilleri geri al.
+                setTimeout(() => {
+                    if (!document.body.contains(el)) return;
+                    el.classList.remove("amb-real-exit");
+                    el.style.animation = "";
+                    el.style.pointerEvents = "";
+                    el.style.opacity = "";
+                }, 150);
+            };
+            this._realExitPending[areaKey] = finish;
+            el.addEventListener("animationend", finish, { once: true });
+            safetyTimer = setTimeout(finish, exitDuration + 120); // animationend gelmezse güvence
+            return true;
+        } catch (err) {
+            console.warn(`${PLUGIN_NAME}: _playRealExit hatası:`, err);
+            return false;
         }
     }
 
@@ -2772,6 +2922,7 @@ module.exports = class AmbientProfilePopouts {
             this._sampleCanvas = document.createElement("canvas"); this._sampleCanvas.width = 12; this._sampleCanvas.height = 12;
             this._colorCache = new Map();
             this._lastActiveSection = "home";
+            this._lastObservedGuildId = this.getCurrentGuildId();
             this.handleShiftClickCopy = this.handleShiftClickCopy.bind(this);
             document.addEventListener("click", this.handleShiftClickCopy, true);
             this.checkForUpdates();
@@ -2781,6 +2932,7 @@ module.exports = class AmbientProfilePopouts {
             this.injectCSS(s);
             this.injectAnimCSS(s);
             this.patchInvisibleTyping();
+            this.patchRealExitAnimations();
             if (this.isCurrentGuildAllowed()) {
                 this.scanExistingProfiles();
                 this.scanExistingMessageEnhancements();
@@ -2795,14 +2947,14 @@ module.exports = class AmbientProfilePopouts {
                 const batch = this._pendingMutations;
                 this._pendingMutations = [];
                 if (!batch.length) return;
-                for (const { addedNodes, removedNodes, target } of batch) {
+                for (const { addedNodes, removedNodes, target, rectCache } of batch) {
                     for (const node of removedNodes) {
                         if (node.nodeType !== Node.ELEMENT_NODE) continue;
                         for (const profile of this.findProfileRoots(node)) this.disconnectProfileAttrObserver(profile);
                         // Exit animation for removed nodes
                         if (!this._isProcessingExit && node.nodeType === 1) {
                             if (!node.classList?.contains('amb-exit-clone') && !node.closest?.('.amb-modal-overlay')) {
-                                this._handleExitAnimation(node, target);
+                                this._handleExitAnimation(node, target, rectCache);
                             }
                         }
                     }
@@ -2826,7 +2978,24 @@ module.exports = class AmbientProfilePopouts {
                     }
                 }
                 if (!this.isCurrentGuildAllowed()) return;
-                for (const m of mutations) this._pendingMutations.push({ addedNodes: m.addedNodes, removedNodes: m.removedNodes, target: m.target });
+                // Capture rects of removed elements before they're processed (Bug #8 fix)
+                const rectCache = new WeakMap();
+                for (const m of mutations) {
+                    for (const rn of m.removedNodes) {
+                        if (rn.nodeType !== 1) continue;
+                        try {
+                            const r = rn.getBoundingClientRect();
+                            if (r && r.width > 0 && r.height > 0) rectCache.set(rn, { left: r.left, top: r.top, width: r.width, height: r.height });
+                            rn.querySelectorAll?.('*')?.forEach?.(child => {
+                                try {
+                                    const cr = child.getBoundingClientRect();
+                                    if (cr && cr.width > 0 && cr.height > 0) rectCache.set(child, { left: cr.left, top: cr.top, width: cr.width, height: cr.height });
+                                } catch (e) { /* skip */ }
+                            });
+                        } catch (e) { /* skip */ }
+                    }
+                    this._pendingMutations.push({ addedNodes: m.addedNodes, removedNodes: m.removedNodes, target: m.target, rectCache });
+                }
                 if (!this._rafId) this._rafId = requestAnimationFrame(this._processMutations);
             });
 
@@ -2860,12 +3029,23 @@ module.exports = class AmbientProfilePopouts {
         for (const k of ANIM_AREAS)
             document.querySelectorAll(`.ambient-anim-${k}`).forEach(el => el.classList.remove(`ambient-anim-${k}`));
         if (this._typingPatch) { this._typingPatch(); this._typingPatch = null; }
+        BdApi.Patcher.unpatchAll(PLUGIN_NAME);
+        if (this._realExitPending) {
+            for (const fin of Object.values(this._realExitPending)) { try { fin(); } catch (e) { /* yok say */ } }
+            this._realExitPending = null;
+        }
+        document.querySelectorAll(".amb-real-exit").forEach(el => {
+            el.classList.remove("amb-real-exit");
+            el.style.animation = "";
+            el.style.pointerEvents = "";
+        });
         if (this._rafId) cancelAnimationFrame(this._rafId);
         this._rafId = null;
         this._pendingMutations = null;
         this._pendingAnims = null;
-        this._rafAnimPending = false;
-        clearTimeout(this._sliderDebounceTimer); this._sliderDebounceTimer = null;
+        this._rafAnimPending = null;
+        if (this._platformRescanTimers) { for (const id of this._platformRescanTimers) clearTimeout(id); this._platformRescanTimers = null; }
+        if (this._modalBodyObserver) { this._modalBodyObserver.disconnect(); this._modalBodyObserver = null; }
         if (this._sliderDebounceTimers) { for (const t of Object.values(this._sliderDebounceTimers)) clearTimeout(t); this._sliderDebounceTimers = null; }
         this._isProcessingExit = false;
         this._colorCache = new Map();
@@ -2915,7 +3095,8 @@ module.exports = class AmbientProfilePopouts {
             const exitEasing = (cfg.exitEasing && cfg.exitEasing !== "auto") ? cfg.exitEasing : defaultEasing;
             const exitDir = cfg.exitDirection || "auto";
 
-            const overflowVal = cfg.enableOverflow ? "visible" : "hidden";
+            const enterOverflowVal = (cfg.enterOverflow !== undefined ? cfg.enterOverflow : cfg.enableOverflow) ? "visible" : "hidden";
+            const exitOverflowVal = (cfg.exitOverflow !== undefined ? cfg.exitOverflow : cfg.enableOverflow) ? "visible" : "hidden";
             const containValue = SAFE_PAINT_AREAS.has(areaKey) ? "contain:layout style paint;" : "contain:layout style;";
             const blurWC = styleName === "blur" ? "will-change:filter;" : "";
 
@@ -2952,7 +3133,7 @@ module.exports = class AmbientProfilePopouts {
                 `will-change:transform,opacity,clip-path;` +
                 `backface-visibility:hidden;` +
                 `transform-origin:center;` +
-                `overflow:${overflowVal};` +
+                `overflow:${enterOverflowVal};` +
                 `${containValue}${blurWC}${cinematicFilter}}`
             );
 
@@ -2965,14 +3146,12 @@ module.exports = class AmbientProfilePopouts {
                 `animation-direction:reverse;` +
                 `animation-fill-mode:both;` +
                 `animation-delay:0ms;` +
-                `overflow:${overflowVal};}`
+                `overflow:${exitOverflowVal};}`
             );
 
             this._activeAreasCache.push([areaKey, AREA_CONFIG[areaKey]]);
         }
         this._combinedSelectorCache = this._activeAreasCache.map(([, meta]) => meta.selector).join(",");
-        this._settingsVersion = (this._settingsVersion || 0) + 1;
-
         BdApi.DOM.addStyle("AmbientAnimCSS", rules.join("\n"));
     }
 
@@ -3027,9 +3206,8 @@ module.exports = class AmbientProfilePopouts {
         if (!this._pendingAnims) this._pendingAnims = [];
         this._pendingAnims.push({ el, cls, prep: positionSensitive });
         if (!this._rafAnimPending) {
-            this._rafAnimPending = true;
-            requestAnimationFrame(() => {
-                this._rafAnimPending = false;
+            this._rafAnimPending = requestAnimationFrame(() => {
+                this._rafAnimPending = null;
                 const batch = this._pendingAnims;
                 this._pendingAnims = [];
                 void document.body.offsetHeight;
@@ -3064,7 +3242,10 @@ module.exports = class AmbientProfilePopouts {
         }, { once: true, passive: true });
     }
 
-    _handleExitAnimation(removedNode, parentNode) {
+    _handleExitAnimation(removedNode, parentNode, rectCache) {
+        // Gerçek çıkış animasyonu zaten oynatıldı — clone sistemi devreye girmesin
+        if (removedNode.classList?.contains('amb-real-exit') || removedNode.querySelector?.('.amb-real-exit')) return;
+
         // Concurrency cap — skip if too many exit clones already exist
         const existingClones = document.querySelectorAll('.amb-exit-clone');
         if (existingClones.length >= 6) return;
@@ -3125,7 +3306,7 @@ module.exports = class AmbientProfilePopouts {
                 clone.style.zIndex = '9999';
 
                 // Position clone at original element's position
-                const rect = el.getBoundingClientRect?.();
+                const rect = (rectCache && rectCache.has(el)) ? rectCache.get(el) : (el.getBoundingClientRect?.());
                 if (rect && rect.width > 0 && rect.height > 0 && parentNode && document.body.contains(parentNode)) {
                     const parentRect = parentNode.getBoundingClientRect();
                     clone.style.left = (rect.left - parentRect.left) + 'px';
@@ -3137,9 +3318,14 @@ module.exports = class AmbientProfilePopouts {
                         parentNode.style.position = 'relative';
                     }
                     parentNode.appendChild(clone);
-                } else if (el.parentNode && document.body.contains(el.parentNode)) {
-                    // Fallback: insert next to original parent
-                    el.parentNode.appendChild(clone);
+                } else if (parentNode && document.body.contains(parentNode)) {
+                    // Fallback: insert into mutation target parent with absolute positioning
+                    if (!parentNode.style.position || parentNode.style.position === 'static') {
+                        parentNode.style.position = 'relative';
+                    }
+                    clone.style.left = '0px';
+                    clone.style.top = '0px';
+                    parentNode.appendChild(clone);
                 } else {
                     // Parent is gone too, skip
                     continue;
@@ -3830,12 +4016,14 @@ module.exports = class AmbientProfilePopouts {
     // Discord açılışında React henüz tüm bileşenleri render etmemiş olabilir.
     // İlk taramada bulunamayan rozetleri yakalamak için kademeli yeniden tarama.
     _schedulePlatformRescan() {
+        if (!this._platformRescanTimers) this._platformRescanTimers = [];
         const delays = [1500, 4000, 8000];
         for (const ms of delays) {
-            setTimeout(() => {
+            const id = setTimeout(() => {
                 if (!this.getSettings().platformIndicatorsEnabled || !this.isCurrentGuildAllowed()) return;
                 this.scanExistingPlatformIndicators();
             }, ms);
+            this._platformRescanTimers.push(id);
         }
     }
 
